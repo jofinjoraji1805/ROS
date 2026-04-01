@@ -1,0 +1,12 @@
+train: train/images
+val: val/images
+test: test/images
+
+names: 
+  0: blue_cube
+  1: blue_drop_zone
+  2: green_cube
+  3: green_drop_zone
+  4: red_cube
+  5: red_drop_zone
+  
