@@ -120,7 +120,8 @@ class LidarProcessor:
     def fit_front_line(self, fov_deg: float = 30.0):
         """Fit a line to LiDAR points in the front arc.
         Returns (slope, intercept) or None if not enough points.
-        slope ≈ 0 means robot is parallel to the surface ahead."""
+        Fits x = slope*y + intercept so slope ≈ 0 means the robot is
+        perpendicular to the surface ahead (all x values equal)."""
         if self.ranges is None or len(self.ranges) == 0:
             return None
         n = len(self.ranges)
@@ -136,7 +137,7 @@ class LidarProcessor:
         x = r[valid] * np.cos(a[valid])
         y = r[valid] * np.sin(a[valid])
         try:
-            coeffs = np.polyfit(x, y, 1)
+            coeffs = np.polyfit(y, x, 1)
             return float(coeffs[0]), float(coeffs[1])
         except (np.linalg.LinAlgError, ValueError):
             return None

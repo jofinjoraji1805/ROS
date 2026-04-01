@@ -62,12 +62,13 @@ EXPLORE_WAYPOINTS = [
 ]
 
 # ── Known positions for navigation ──────────────────────────────────
-# Approach points: where the robot should navigate to before using YOLO
-# for final visual approach. These are ~0.8m in front of each object.
+# L-path approach: robot first drives to staging Y (same Y as table),
+# then turns and drives straight -X toward the table.
+# Each entry is a list of (x, y) waypoints forming the L-path.
 CUBE_NAV_TARGETS = {
-    "RED":   (0.0, -1.5),   # approach red cube table from front
-    "BLUE":  (0.0, 0.0),    # approach blue cube table
-    "GREEN": (0.0, 1.5),    # approach green cube table
+    "RED":   [(0.5, -1.5), (0.0, -1.5)],   # stage at y=-1.5, then approach
+    "BLUE":  [(0.5, 0.0),  (0.0, 0.0)],    # stage at y=0.0, then approach
+    "GREEN": [(0.5, 1.5),  (0.0, 1.5)],    # stage at y=1.5, then approach
 }
 ZONE_NAV_TARGETS = {
     "RED":   (1.0, 1.5),    # approach red drop zone
@@ -85,7 +86,7 @@ CUBE_TABLE_Y = {
 # Face direction after arriving at nav target (perpendicular to object)
 CUBE_FACE_YAW = 3.14159      # face -X (toward tables at x=-1.0)
 ZONE_FACE_YAW = 0.0          # face +X (toward baskets at x=2.0)
-FACE_YAW_TOLERANCE = 0.06    # rad (~3.5 deg)
+FACE_YAW_TOLERANCE = 0.03    # rad (~1.7 deg)
 
 # ── Scanning ──────────────────────────────────────────────────────────
 SCAN_ANG_VEL = 0.15
@@ -131,17 +132,17 @@ RETURN_HOME_THRESH = 0.20
 ARM_HOME = [0.0, -1.0, 0.3, 0.7]
 # READY: arm raised, preparing to extend toward cube
 ARM_READY = [0.0, -0.6, 0.3, 0.3]
-# PRE_PICK: arm extended forward ABOVE cube -- hover over cube before lowering
-ARM_PRE_PICK = [0.0, 0.30, 0.50, -0.80]
-# PICK: gripper at cube height -- fully lowered to table surface
-ARM_PICK = [0.0, 0.55, 0.55, -1.10]
+# PRE_PICK: arm extended forward ABOVE cube -- hover high to avoid hitting cube
+ARM_PRE_PICK = [0.0, 0.15, 0.35, -0.50]
+# PICK: gripper lowered to cube height -- reduced forward reach to avoid pushing cube
+ARM_PICK = [0.0, 0.40, 0.40, -0.80]
 # LIFT: raise cube off table
 ARM_LIFT = [0.0, -0.1, 0.55, -0.45]
 
-# RED cube needs joint1 offset to the right (-0.15 rad) for alignment
-ARM_PRE_PICK_RED = [-0.15, 0.30, 0.50, -0.80]
-ARM_PICK_RED = [-0.15, 0.55, 0.55, -1.10]
-ARM_LIFT_RED = [-0.15, -0.1, 0.55, -0.45]
+# RED cube: same as default (perpendicular alignment handles centering)
+ARM_PRE_PICK_RED = [0.0, 0.15, 0.35, -0.50]
+ARM_PICK_RED = [0.0, 0.40, 0.40, -0.80]
+ARM_LIFT_RED = [0.0, -0.1, 0.55, -0.45]
 # CARRY: compact carry position, cube held close to body
 ARM_CARRY = [0.0, -0.8, 0.2, 0.6]
 # Drop into basket from above (arm extended forward + high to clear 0.20m walls)

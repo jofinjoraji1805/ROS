@@ -22,6 +22,7 @@ from trajectory_msgs.msg import JointTrajectory
 from control_msgs.action import GripperCommand as GripperCommandAction
 from gazebo_msgs.srv import SetEntityState
 from gazebo_msgs.msg import EntityState
+from std_srvs.srv import Trigger
 from cv_bridge import CvBridge
 
 from .config import (
@@ -135,6 +136,10 @@ class RobotController(Node):
 
         self._manual_lx = 0.0
         self._manual_az = 0.0
+
+        # ── CLI trigger services ─────────────────────────────────────
+        self.create_service(Trigger, '~/start_mission', self._srv_start_mission)
+        self.create_service(Trigger, '~/stop_mission', self._srv_stop_mission)
 
         # ── 10 Hz tick ───────────────────────────────────────────────
         self.create_timer(0.1, self._tick)
@@ -297,6 +302,22 @@ class RobotController(Node):
     def stop_mission(self):
         self.fsm.stop_mission()
         self.phase = self.PHASE_IDLE
+
+    def _srv_start_mission(self, request, response):
+        if self.phase == self.PHASE_IDLE:
+            self.start_mission()
+            response.success = True
+            response.message = "Mission started"
+        else:
+            response.success = False
+            response.message = f"Cannot start: phase={self.phase}"
+        return response
+
+    def _srv_stop_mission(self, request, response):
+        self.stop_mission()
+        response.success = True
+        response.message = "Mission stopped"
+        return response
 
     def set_manual_mode(self, enabled: bool):
         if enabled:

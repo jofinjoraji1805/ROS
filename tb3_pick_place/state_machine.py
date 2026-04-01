@@ -156,19 +156,18 @@ class StateMachine:
 
     def _start_nav_to_cube(self, task: TaskDef):
         lbl = task.label
-        target = CUBE_NAV_TARGETS.get(lbl)
-        if target and self.navigator.map_loaded:
-            ok = self.navigator.navigate_to(*target)
-            if ok:
-                self.state = ST_NAV_TO_CUBE
-                self.status_text = f"[{lbl}] Navigating to {lbl} cube area..."
-                self._log(self.status_text)
-                return
-        # Fallback: drive to approach point using odometry, then search
-        self.state = ST_DRIVE_TO_CUBE
-        self._phase_start = time.time()
-        self.status_text = f"[{lbl}] Driving to {lbl} cube area..."
-        self._log(self.status_text)
+        waypoints = CUBE_NAV_TARGETS.get(lbl)
+        if waypoints:
+            self._lpath_wps = list(waypoints)  # L-path waypoints
+            self._lpath_idx = 0
+            self.state = ST_DRIVE_TO_CUBE
+            self._phase_start = time.time()
+            self.status_text = f"[{lbl}] L-path to {lbl} cube..."
+            self._log(self.status_text)
+        else:
+            self.state = ST_SEARCH_OBJECT
+            self._lost_count = 0
+            self._max_area = 0.0
 
     def _start_nav_to_zone(self, task: TaskDef):
         lbl = task.label
@@ -249,26 +248,17 @@ class StateMachine:
     # ── NAV_TO_CUBE: A* navigation to cube approach point ────────────
 
     def _nav_to_cube(self, task: TaskDef, lbl: str):
+        """Face the table after L-path drive is complete, then search."""
         if self._facing:
             if self._face_yaw_tick(lbl):
-                # After facing table, go to SEARCH to find the cube with YOLO
                 self.state = ST_SEARCH_OBJECT
                 self._lost_count = 0
                 self._max_area = 0.0
                 self._log(f"[{lbl}] Facing table -- searching for cube...")
             return
-
-        self.navigator.tick()
-        self.status_text = f"[{lbl}] {self.navigator.status_text}"
-
-        if self.navigator.is_done():
-            self._facing = True
-            self._face_target = CUBE_FACE_YAW
-            self._log(f"[{lbl}] Arrived -- turning to face table...")
-        elif self.navigator.has_failed():
-            self._facing = True
-            self._face_target = CUBE_FACE_YAW
-            self._log(f"[{lbl}] Nav failed -- turning to face table...")
+        # Shouldn't reach here, but just in case
+        self._facing = True
+        self._face_target = CUBE_FACE_YAW
 
     # ── NAV_TO_ZONE: A* navigation to drop zone approach point ───────
 
@@ -295,35 +285,10 @@ class StateMachine:
     # ── DRIVE_TO_CUBE: simple odom drive to approach point (no map) ────
 
     def _drive_to_cube(self, task: TaskDef, lbl: str):
-        """Drive to CUBE_NAV_TARGETS using odometry when no map is available.
-        Also monitors LIDAR: when front distance <= 2.80m (wall ahead),
-        turn left to face the tables."""
-        target = CUBE_NAV_TARGETS.get(lbl)
-        if target is None:
-            self.state = ST_SEARCH_OBJECT
-            self._lost_count = 0
-            self._max_area = 0.0
-            return
-
-        tx, ty = target
-        x, y, yaw = self._get_odom()
-        dx = tx - x
-        dy = ty - y
-        dist = math.sqrt(dx * dx + dy * dy)
-        front_d = self.lidar.get_front_distance()
-
-        elapsed = time.time() - self._phase_start
-
-        # LIDAR trigger: wall at 2.80m ahead -- turn left to face tables
-        if front_d <= 2.80:
-            self.motion.stop()
-            self._facing = True
-            self._face_target = CUBE_FACE_YAW
-            self.state = ST_NAV_TO_CUBE
-            self._log(f"[{lbl}] Wall at {front_d:.2f}m -- turning to face table...")
-            return
-
-        if elapsed > 40.0 or dist < 0.20:
+        """L-path drive: follow waypoints sequentially using odometry.
+        After all waypoints, face the table and start YOLO search."""
+        if not hasattr(self, '_lpath_wps') or self._lpath_idx >= len(self._lpath_wps):
+            # All waypoints done -- face table and search
             self.motion.stop()
             self._facing = True
             self._face_target = CUBE_FACE_YAW
@@ -331,19 +296,46 @@ class StateMachine:
             self._log(f"[{lbl}] At approach point -- facing table...")
             return
 
+        tx, ty = self._lpath_wps[self._lpath_idx]
+        x, y, yaw = self._get_odom()
+        dx = tx - x
+        dy = ty - y
+        dist = math.sqrt(dx * dx + dy * dy)
+
+        # Reached this waypoint?
+        if dist < 0.15:
+            self._lpath_idx += 1
+            self._log(f"[{lbl}] L-path waypoint {self._lpath_idx}/{len(self._lpath_wps)} reached")
+            return
+
+        # Timeout safety
+        elapsed = time.time() - self._phase_start
+        if elapsed > 60.0:
+            self.motion.stop()
+            self._facing = True
+            self._face_target = CUBE_FACE_YAW
+            self.state = ST_NAV_TO_CUBE
+            self._log(f"[{lbl}] Drive timeout -- facing table...")
+            return
+
+        # Drive toward waypoint: rotate first, then drive
         target_yaw = math.atan2(dy, dx)
         yaw_err = target_yaw - yaw
         while yaw_err > math.pi:  yaw_err -= 2 * math.pi
         while yaw_err < -math.pi: yaw_err += 2 * math.pi
 
-        if abs(yaw_err) > 0.20:
-            ang = max(-MAX_ANG_VEL, min(MAX_ANG_VEL, 0.5 * yaw_err))
+        if abs(yaw_err) > 0.15:
+            # Rotate in place first
+            ang = max(-MAX_ANG_VEL, min(MAX_ANG_VEL, 0.6 * yaw_err))
             self.motion.publish(lx=0.0, az=ang)
         else:
-            fwd = self._safe_fwd(min(0.15, 0.5 * dist))
-            ang = max(-MAX_ANG_VEL, min(MAX_ANG_VEL, 0.3 * yaw_err))
+            # Drive with heading correction
+            fwd = self._safe_fwd(min(0.12, 0.5 * dist))
+            ang = max(-MAX_ANG_VEL, min(MAX_ANG_VEL, 0.4 * yaw_err))
             self.motion.publish(lx=fwd, az=ang)
-        self.status_text = f"[{lbl}] Driving to approach point {dist:.2f}m LIDAR:{front_d:.2f}m"
+        wp = self._lpath_idx + 1
+        total = len(self._lpath_wps)
+        self.status_text = f"[{lbl}] L-path WP{wp}/{total} d={dist:.2f}m"
 
     # ── SEARCH / ALIGN / APPROACH / ADJUST (YOLO visual servo) ──────
 
@@ -414,13 +406,13 @@ class StateMachine:
             self.status_text = f"[{lbl}] Aligning err={pixel_err:+.0f}px"
 
     def _approach_object(self, task: TaskDef, lbl: str):
-        """Drive toward table using odometry-based lateral correction.
-        Steers toward the known table y-coordinate so the robot arrives
-        centered on the table, not at a corner."""
+        """Drive toward cube using continuous YOLO visual servoing.
+        Keeps the cube centered in the camera frame while driving forward,
+        so the robot converges directly in front of the cube."""
         elapsed = time.time() - self._phase_start
         front_d = self.lidar.get_front_distance()
 
-        # Stop when LIDAR detects table -- align first
+        # Stop when LIDAR detects table -- align
         if front_d < TABLE_STOP_DISTANCE:
             self.motion.stop()
             time.sleep(0.3)
@@ -437,27 +429,35 @@ class StateMachine:
             self._phase_start = time.time()
             return
 
-        # Use odometry to steer toward the table center y-coordinate
-        x, y, cur_yaw = self._get_odom()
-        table_y = CUBE_TABLE_Y.get(lbl, y)  # target y-coordinate
-        table_x = -1.0  # tables are at x=-1.0
-        y_err = table_y - y  # lateral offset from table centerline
-
-        # Compute desired heading: aim at a point on the table center
-        # This converges the robot toward the correct y as it drives forward
-        dx = table_x - x
-        target_heading = math.atan2(y_err, dx)
-
-        yaw_err = target_heading - cur_yaw
-        while yaw_err > math.pi:  yaw_err -= 2 * math.pi
-        while yaw_err < -math.pi: yaw_err += 2 * math.pi
-
-        # Limit angular correction
-        ang = max(-0.10, min(0.10, 0.5 * yaw_err))
+        # YOLO visual servo: continuously steer to keep cube centered
+        target = self._find_and_label(task.cube_cls)
+        if target is not None:
+            self._lost_count = 0
+            cx = target[0]
+            pixel_err = (cx - 0.5) * 640
+            # Proportional steering to center cube in camera
+            ang = max(-0.15, min(0.15, -APPROACH_MILD_KP * (cx - 0.5)))
+            # Update saved heading for fallback
+            _, _, yaw = self._get_odom()
+            self._perp_yaw = yaw
+        else:
+            self._lost_count += 1
+            pixel_err = 0
+            # Fallback: hold last known good heading
+            _, _, cur_yaw = self._get_odom()
+            yaw_err = self._perp_yaw - cur_yaw
+            while yaw_err > math.pi:  yaw_err -= 2 * math.pi
+            while yaw_err < -math.pi: yaw_err += 2 * math.pi
+            ang = max(-0.10, min(0.10, 0.8 * yaw_err))
+            if self._lost_count > CUBE_LOST_TICKS:
+                self.motion.stop()
+                self.state = ST_SEARCH_OBJECT
+                self._lost_count = 0
+                return
 
         fwd = self._safe_fwd(APPROACH_FWD)
         self.motion.publish(lx=fwd, az=ang)
-        self.status_text = f"[{lbl}] -> table y_err={y_err:+.2f}m d={front_d:.2f}m"
+        self.status_text = f"[{lbl}] Approach err={pixel_err:+.0f}px d={front_d:.2f}m"
 
     def _adjust_position(self, task: TaskDef, lbl: str):
         elapsed = time.time() - self._phase_start
@@ -483,23 +483,20 @@ class StateMachine:
             self._log(self.status_text)
             return
 
-        # Odom-based steering toward table center
-        x, y, cur_yaw = self._get_odom()
-        table_y = CUBE_TABLE_Y.get(lbl, y)
-        y_err = table_y - y
-        target_heading = math.atan2(y_err, -1.0 - x)
-        yaw_err = target_heading - cur_yaw
+        # Heading-hold: drive straight on saved heading
+        _, _, cur_yaw = self._get_odom()
+        yaw_err = self._perp_yaw - cur_yaw
         while yaw_err > math.pi:  yaw_err -= 2 * math.pi
         while yaw_err < -math.pi: yaw_err += 2 * math.pi
-        ang = max(-0.10, min(0.10, 0.5 * yaw_err))
+        ang = max(-0.10, min(0.10, 0.8 * yaw_err))
         self.motion.publish(lx=ADJUST_FWD, az=ang)
-        self.status_text = f"[{lbl}] Creep y_err={y_err:+.2f}m d={front_d:.2f}m {ADJUST_DURATION - elapsed:.1f}s"
+        self.status_text = f"[{lbl}] Straight creep d={front_d:.2f}m {ADJUST_DURATION - elapsed:.1f}s"
 
     # ── ALIGN_TABLE: LiDAR parallel + YOLO cube center + final creep ───
 
     def _align_table(self, task: TaskDef, lbl: str):
         """Three-phase alignment at table (lateral centering handled by odom approach):
-        Phase 0: Rotate until parallel to table (LiDAR slope ≈ 0)
+        Phase 0: Rotate until perpendicular to table (LiDAR slope ≈ 0)
         Phase 1: Rotate until cube is centered in camera (YOLO)
         Phase 2: Final creep forward to pick distance while keeping cube centered
         """
@@ -530,7 +527,7 @@ class StateMachine:
 
             if abs(angle_err) < ALIGN_TABLE_SLOPE_THRESH:
                 self.motion.stop()
-                self._log(f"[{lbl}] Parallel (err={math.degrees(angle_err):.1f}deg) -- centering on cube...")
+                self._log(f"[{lbl}] Perpendicular (err={math.degrees(angle_err):.1f}deg) -- centering on cube...")
                 self._align_phase = 1
                 self._phase_start = time.time()
                 self._lost_count = 0
@@ -540,7 +537,7 @@ class StateMachine:
             if 0 < abs(ang) < 0.03:
                 ang = 0.03 * (1 if ang > 0 else -1)
             self.motion.publish(lx=0.0, az=ang)
-            self.status_text = f"[{lbl}] Aligning parallel err={math.degrees(angle_err):+.1f}deg"
+            self.status_text = f"[{lbl}] Aligning perpendicular err={math.degrees(angle_err):+.1f}deg"
 
         # ── Phase 1: YOLO cube centering ──
         elif self._align_phase == 1:
@@ -585,7 +582,7 @@ class StateMachine:
         # ── Phase 2: Final creep to pick distance ──
         elif self._align_phase == 2:
             front_d = self.lidar.get_front_distance()
-            pick_dist = 0.17  # target distance for arm reach
+            pick_dist = 0.20  # target distance from table
 
             if front_d <= pick_dist:
                 self.motion.stop()
@@ -617,6 +614,8 @@ class StateMachine:
         t = time.time() - self._pick_timer
         p = self._pick_phase
 
+        # Simulated pick: teleport cube to gripper early to avoid arm collision.
+        # Sequence: open gripper → ready → pre_pick → TELEPORT cube → close → lift → carry
         if p == 0:
             self.motion.stop()
             self.arm.open_gripper()
@@ -627,34 +626,27 @@ class StateMachine:
             self._pick_phase = 2; self._pick_timer = time.time()
             self.status_text = f"[{lbl}] Arm ready..."
         elif p == 2 and t > 4.0:
-            self.arm.pre_pick(3.0, color=lbl)
-            self._pick_phase = 3; self._pick_timer = time.time()
-            self.status_text = f"[{lbl}] Pre-pick..."
-        elif p == 3 and t > 4.0:
-            self.arm.pick(4.0, color=lbl)
-            self._pick_phase = 4; self._pick_timer = time.time()
-            self.status_text = f"[{lbl}] Lowering to cube..."
-        elif p == 4 and t > 5.0:
-            # Close gripper
-            self.arm.gripper(-0.010, effort=20.0)
-            self._pick_phase = 5; self._pick_timer = time.time()
-            self.status_text = f"[{lbl}] Closing gripper..."
-        elif p == 5 and t > 2.0:
-            # Simulated grasp: teleport cube to gripper
+            # Teleport cube to gripper BEFORE arm reaches down
             if self._robot:
                 self._robot.attach_cube(lbl)
-            self._pick_phase = 6; self._pick_timer = time.time()
-            self.status_text = f"[{lbl}] Cube attached!"
+            self.arm.pre_pick(3.0, color=lbl)
+            self._pick_phase = 3; self._pick_timer = time.time()
+            self.status_text = f"[{lbl}] Grabbing cube..."
             self._log(f"[{lbl}] Cube grabbed (simulated grasp)")
-        elif p == 6 and t > 1.0:
+        elif p == 3 and t > 4.0:
+            # Close gripper around the teleported cube
+            self.arm.gripper(-0.010, effort=20.0)
+            self._pick_phase = 4; self._pick_timer = time.time()
+            self.status_text = f"[{lbl}] Closing gripper..."
+        elif p == 4 and t > 2.0:
             self.arm.lift(3.0, color=lbl)
-            self._pick_phase = 7; self._pick_timer = time.time()
+            self._pick_phase = 5; self._pick_timer = time.time()
             self.status_text = f"[{lbl}] Lifting..."
-        elif p == 7 and t > 4.0:
+        elif p == 5 and t > 4.0:
             self.arm.carry(3.0)
-            self._pick_phase = 8; self._pick_timer = time.time()
+            self._pick_phase = 6; self._pick_timer = time.time()
             self.status_text = f"[{lbl}] Carrying..."
-        elif p == 8 and t > 4.0:
+        elif p == 6 and t > 4.0:
             self.status_text = f"[{lbl}] Grab complete -- backing up..."
             self._log(self.status_text)
             self.state = ST_BACKUP_PICK
