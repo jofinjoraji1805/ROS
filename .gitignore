@@ -1,0 +1,15 @@
+# Colcon build artifacts
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.pyc
+
+# Large binary files
+*.zip
+*.pt
+
+# IDE / editor
+.claude/

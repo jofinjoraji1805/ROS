@@ -1,0 +1,6 @@
+red_cube
+green_cube
+blue_cube
+red_drop_zone
+green_drop_zone
+blue_drop_zone
