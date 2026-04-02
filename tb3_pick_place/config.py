@@ -158,7 +158,7 @@ ARM_DROP_RETREAT = [0.0, -0.50, 0.30, 0.20]    # pull arm back after release
 
 # ── Gripper ──────────────────────────────────────────────────────────
 GRIPPER_OPEN = 0.019
-GRIPPER_CLOSE = -0.010            # firm close to actually grip cube
+GRIPPER_CLOSE = -0.015            # close past cube so controller keeps squeezing
 GRIPPER_EFFORT = 200.0            # max effort for physical grip with friction
 
 # ── Manual teleop ────────────────────────────────────────────────────

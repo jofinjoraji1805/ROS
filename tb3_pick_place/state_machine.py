@@ -649,7 +649,7 @@ class StateMachine:
         t = time.time() - self._pick_timer
         p = self._pick_phase
 
-        # Physical grasp: arm reaches cube, gripper closes on it, then lift
+        # Smooth grasp: slow gentle close, then firm grip + attach, then lift
         if p == 0:
             self.motion.stop()
             self.arm.open_gripper()
@@ -664,22 +664,32 @@ class StateMachine:
             self._pick_phase = 3; self._pick_timer = time.time()
             self.status_text = f"[{lbl}] Reaching for cube..."
         elif p == 3 and t > 5.0:
-            # Close gripper on cube + attach via plugin for physics hold
-            self.arm.close_gripper()
+            # Slow gentle close (low effort = slow motor movement)
+            self.arm.close_gripper_slow()
+            self._pick_phase = 4; self._pick_timer = time.time()
+            self.status_text = f"[{lbl}] Slowly closing gripper..."
+            self._log(f"[{lbl}] Gentle gripper close...")
+        elif p == 4 and t > 4.0:
+            # Firm grip (full effort to squeeze tight)
+            self.arm.close_gripper_firm()
+            self._pick_phase = 5; self._pick_timer = time.time()
+            self.status_text = f"[{lbl}] Grip tight!"
+        elif p == 5 and t > 2.0:
+            # Lock grip with attachment (cube is centered by physics)
             if self._robot:
                 self._robot.attach_cube(lbl)
-            self._pick_phase = 4; self._pick_timer = time.time()
-            self.status_text = f"[{lbl}] Gripping cube..."
-            self._log(f"[{lbl}] Gripper closed + cube attached!")
-        elif p == 4 and t > 2.5:
-            self.arm.lift(4.0, color=lbl)
-            self._pick_phase = 5; self._pick_timer = time.time()
-            self.status_text = f"[{lbl}] Lifting..."
-        elif p == 5 and t > 5.0:
-            self.arm.carry(3.0)
             self._pick_phase = 6; self._pick_timer = time.time()
+            self.status_text = f"[{lbl}] Grip locked!"
+            self._log(f"[{lbl}] Cube secured in gripper!")
+        elif p == 6 and t > 1.5:
+            self.arm.lift(4.0, color=lbl)
+            self._pick_phase = 7; self._pick_timer = time.time()
+            self.status_text = f"[{lbl}] Lifting..."
+        elif p == 7 and t > 5.0:
+            self.arm.carry(3.0)
+            self._pick_phase = 8; self._pick_timer = time.time()
             self.status_text = f"[{lbl}] Carrying..."
-        elif p == 6 and t > 4.0:
+        elif p == 8 and t > 4.0:
             self.status_text = f"[{lbl}] Grab complete -- backing up..."
             self._log(self.status_text)
             self.state = ST_BACKUP_PICK

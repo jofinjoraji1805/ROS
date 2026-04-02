@@ -1,0 +1,4 @@
+[console_scripts]
+pick_place_demo = tb3_pick_place.pick_place_demo:main
+yolo_pick_place = tb3_pick_place.main:main
+
