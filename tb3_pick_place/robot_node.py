@@ -87,8 +87,8 @@ class RobotController(Node):
             SetEntityState, '/gazebo/set_entity_state')
 
         # ── Model attachment plugin (for physical grasp) ────────────
-        self._attach_cli = self.create_client(Attach, '/attach')
-        self._detach_cli = self.create_client(Detach, '/detach')
+        self._attach_cli = self.create_client(Attach, '/gazebo/attach')
+        self._detach_cli = self.create_client(Detach, '/gazebo/detach')
 
         self.get_logger().info("Waiting for gripper action server...")
         gripper_ac.wait_for_server(timeout_sec=10.0)
@@ -222,26 +222,46 @@ class RobotController(Node):
         cube_name = self._CUBE_NAMES.get(color)
         if not cube_name:
             return
+        if not self._attach_cli.service_is_ready():
+            self.get_logger().warn(f"Attach service not ready! Waiting...")
+            self._attach_cli.wait_for_service(timeout_sec=5.0)
         req = Attach.Request()
         req.joint_name = f'{cube_name}_grasp'
         req.model_name_1 = 'turtlebot3_manipulation_system'
         req.link_name_1 = 'gripper_left_link'
         req.model_name_2 = cube_name
         req.link_name_2 = 'link'
-        self._attach_cli.call_async(req)
-        self.get_logger().info(f"Attached {cube_name} to gripper (fixed joint)")
+        future = self._attach_cli.call_async(req)
+        future.add_done_callback(
+            lambda f: self._log_service_result(f, f"Attach {cube_name}"))
+        self.get_logger().info(f"Attaching {cube_name} to gripper...")
 
     def detach_cube(self, color: str):
         """Detach cube from gripper -- cube becomes free again."""
         cube_name = self._CUBE_NAMES.get(color)
         if not cube_name:
             return
+        if not self._detach_cli.service_is_ready():
+            self.get_logger().warn(f"Detach service not ready! Waiting...")
+            self._detach_cli.wait_for_service(timeout_sec=5.0)
         req = Detach.Request()
         req.joint_name = f'{cube_name}_grasp'
         req.model_name_1 = 'turtlebot3_manipulation_system'
         req.model_name_2 = cube_name
-        self._detach_cli.call_async(req)
-        self.get_logger().info(f"Detached {cube_name} from gripper")
+        future = self._detach_cli.call_async(req)
+        future.add_done_callback(
+            lambda f: self._log_service_result(f, f"Detach {cube_name}"))
+        self.get_logger().info(f"Detaching {cube_name} from gripper...")
+
+    def _log_service_result(self, future, label: str):
+        try:
+            result = future.result()
+            if result.success:
+                self.get_logger().info(f"{label}: SUCCESS - {result.message}")
+            else:
+                self.get_logger().error(f"{label}: FAILED - {result.message}")
+        except Exception as e:
+            self.get_logger().error(f"{label}: Exception - {e}")
 
     def carry_cube(self, color: str):
         """No-op: cube is physically attached via fixed joint."""

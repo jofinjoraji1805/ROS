@@ -239,7 +239,7 @@ class StateMachine:
         if handler:
             handler(task, lbl)
 
-        # Keep cube following robot during carry/transport states (teleport)
+        # Keep cube following robot during carry/transport states (attached via joint)
         if self._robot and self.state in (
             ST_PICK_OBJECT, ST_BACKUP_PICK, ST_DRIVE_TO_ZONE, ST_NAV_TO_ZONE,
             ST_SEARCH_DROP_ZONE, ST_APPROACH_DROP, ST_ADJUST_DROP,
@@ -657,8 +657,7 @@ class StateMachine:
         t = time.time() - self._pick_timer
         p = self._pick_phase
 
-        # Teleport grasp: arm goes to pick pose, then teleport cube into gripper
-        # (Gazebo can't reliably collide thin gripper fingers with 25mm cube)
+        # Arm goes to pick pose, then attach cube via fixed joint (model attachment plugin)
         if p == 0:
             self.motion.stop()
             self.arm.open_gripper()
@@ -673,12 +672,12 @@ class StateMachine:
             self._pick_phase = 3; self._pick_timer = time.time()
             self.status_text = f"[{lbl}] Reaching for cube..."
         elif p == 3 and t > 5.0:
-            # Teleport cube into gripper position + close
+            # Attach cube to gripper via fixed joint + close gripper
             if self._robot:
                 self._robot.attach_cube(lbl)
             self.arm.close_gripper()
             self._pick_phase = 4; self._pick_timer = time.time()
-            self.status_text = f"[{lbl}] Gripping cube (teleport)..."
+            self.status_text = f"[{lbl}] Gripping cube (attached)..."
             self._log(f"[{lbl}] Cube attached to gripper!")
         elif p == 4 and t > 2.0:
             self.arm.lift(4.0, color=lbl)

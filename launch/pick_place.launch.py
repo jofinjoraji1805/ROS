@@ -2,8 +2,9 @@
 """
 Launch: TurtleBot3 Waffle Pi + OpenMANIPULATOR-X in custom world with pick-place objects.
 
-Uses the official turtlebot3_manipulation_gazebo launch as a base,
-but overrides the world file.
+Uses the official turtlebot3_manipulation_gazebo base launch for robot description
+and controllers, but launches gzserver/gzclient explicitly to control startup order.
+gzclient is delayed to avoid crashing before gzserver rendering initialises.
 """
 import os
 from launch import LaunchDescription
@@ -23,6 +24,7 @@ def generate_launch_description():
 
     # TurtleBot3 manipulation Gazebo package
     tb3_manip_gazebo = get_package_share_directory('turtlebot3_manipulation_gazebo')
+    gazebo_ros_share = get_package_share_directory('gazebo_ros')
 
     # Set TURTLEBOT3_MODEL (required)
     set_tb3_model = SetEnvironmentVariable(
@@ -30,26 +32,68 @@ def generate_launch_description():
         value='waffle_pi'
     )
 
-    # Include the official turtlebot3_manipulation_gazebo launch
-    # Override the world parameter
-    # Spawn robot at the START position (away from the table)
-    gazebo_launch = IncludeLaunchDescription(
+    # Ensure Gazebo resource path is set (needed for gzserver camera rendering)
+    gazebo_resource = os.path.join('/usr', 'share', 'gazebo-11')
+    set_gazebo_resource = SetEnvironmentVariable(
+        name='GAZEBO_RESOURCE_PATH',
+        value=os.environ.get('GAZEBO_RESOURCE_PATH', gazebo_resource)
+    )
+    set_gazebo_model = SetEnvironmentVariable(
+        name='GAZEBO_MODEL_PATH',
+        value=os.environ.get('GAZEBO_MODEL_PATH',
+                             os.path.join(gazebo_resource, 'models'))
+    )
+
+    # ── Robot description + controllers (from upstream base.launch.py) ──
+    base_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(tb3_manip_gazebo, 'launch', 'gazebo.launch.py')
+            os.path.join(tb3_manip_gazebo, 'launch', 'base.launch.py')
         ),
         launch_arguments={
-            'world': world_file,
             'start_rviz': 'false',
-            'use_sim_time': 'true',
-            'x_pose': '0.5',
-            'y_pose': '-2.0',
-            'yaw': '1.5708',
+            'use_sim': 'true',
         }.items(),
     )
 
-    # Launch the pick-place GUI node after a delay for controllers to start
+    # ── gzserver with verbose for debugging camera rendering ──
+    gzserver = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(gazebo_ros_share, 'launch', 'gzserver.launch.py')
+        ),
+        launch_arguments={
+            'world': world_file,
+            'verbose': 'false',
+        }.items(),
+    )
+
+    # ── gzclient delayed to allow gzserver rendering to initialise ──
+    gzclient = TimerAction(
+        period=10.0,
+        actions=[
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    os.path.join(gazebo_ros_share, 'launch', 'gzclient.launch.py')
+                ),
+            ),
+        ],
+    )
+
+    # ── Spawn robot ──
+    spawn_robot = Node(
+        package='gazebo_ros',
+        executable='spawn_entity.py',
+        arguments=[
+            '-topic', 'robot_description',
+            '-entity', 'turtlebot3_manipulation_system',
+            '-x', '0.5', '-y', '-2.0', '-z', '0.01',
+            '-R', '0.00', '-P', '0.00', '-Y', '1.5708',
+        ],
+        output='screen',
+    )
+
+    # ── Pick-place node (delayed for controllers) ──
     pick_place_node = TimerAction(
-        period=15.0,
+        period=18.0,
         actions=[
             Node(
                 package='tb3_pick_place',
@@ -63,6 +107,11 @@ def generate_launch_description():
 
     return LaunchDescription([
         set_tb3_model,
-        gazebo_launch,
+        set_gazebo_resource,
+        set_gazebo_model,
+        base_launch,
+        gzserver,
+        gzclient,
+        spawn_robot,
         pick_place_node,
     ])
