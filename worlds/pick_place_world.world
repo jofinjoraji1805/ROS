@@ -250,7 +250,7 @@
           </inertia>
         </inertial>
         <collision name='collision'>
-          <geometry><box><size>0.025 0.025 0.050</size></box></geometry>
+          <geometry><box><size>0.018 0.018 0.045</size></box></geometry>
           <surface>
             <friction>
               <ode><mu>100.0</mu><mu2>100.0</mu2></ode>
@@ -265,7 +265,7 @@
           </surface>
         </collision>
         <visual name='visual'>
-          <geometry><box><size>0.025 0.025 0.050</size></box></geometry>
+          <geometry><box><size>0.018 0.018 0.045</size></box></geometry>
           <material>
             <ambient>0.1 0.8 0.1 1</ambient>
             <diffuse>0.1 0.8 0.1 1</diffuse>
@@ -321,7 +321,7 @@
           </inertia>
         </inertial>
         <collision name='collision'>
-          <geometry><box><size>0.025 0.025 0.050</size></box></geometry>
+          <geometry><box><size>0.018 0.018 0.045</size></box></geometry>
           <surface>
             <friction>
               <ode><mu>100.0</mu><mu2>100.0</mu2></ode>
@@ -336,7 +336,7 @@
           </surface>
         </collision>
         <visual name='visual'>
-          <geometry><box><size>0.025 0.025 0.050</size></box></geometry>
+          <geometry><box><size>0.018 0.018 0.045</size></box></geometry>
           <material>
             <ambient>0.1 0.1 0.9 1</ambient>
             <diffuse>0.1 0.1 0.9 1</diffuse>
@@ -392,7 +392,7 @@
           </inertia>
         </inertial>
         <collision name='collision'>
-          <geometry><box><size>0.025 0.025 0.050</size></box></geometry>
+          <geometry><box><size>0.018 0.018 0.045</size></box></geometry>
           <surface>
             <friction>
               <ode><mu>100.0</mu><mu2>100.0</mu2></ode>
@@ -407,7 +407,7 @@
           </surface>
         </collision>
         <visual name='visual'>
-          <geometry><box><size>0.025 0.025 0.050</size></box></geometry>
+          <geometry><box><size>0.018 0.018 0.045</size></box></geometry>
           <material>
             <ambient>0.9 0.2 0.2 1</ambient>
             <diffuse>0.9 0.2 0.2 1</diffuse>
@@ -428,26 +428,126 @@
           <geometry><box><size>0.40 0.40 0.01</size></box></geometry>
           <material><ambient>0.95 0.75 0.75 1</ambient><diffuse>0.95 0.75 0.75 1</diffuse></material>
         </visual>
+        <collision name='floor_c'>
+          <pose>0 0 0.005 0 0 0</pose>
+          <geometry><box><size>0.40 0.40 0.01</size></box></geometry>
+          <surface>
+            <bounce>
+              <restitution_coefficient>0.5</restitution_coefficient>
+              <threshold>0.01</threshold>
+            </bounce>
+            <friction>
+              <ode><mu>1.0</mu><mu2>1.0</mu2></ode>
+            </friction>
+            <contact>
+              <ode>
+                <kp>1000000</kp><kd>100</kd>
+                <max_vel>1.0</max_vel>
+                <min_depth>0.001</min_depth>
+              </ode>
+            </contact>
+          </surface>
+        </collision>
         <visual name='wall_front_v'>
           <pose>0.20 0 0.10 0 0 0</pose>
           <geometry><box><size>0.03 0.40 0.20</size></box></geometry>
           <material><ambient>0.9 0.2 0.6 1</ambient><diffuse>0.9 0.2 0.6 1</diffuse></material>
         </visual>
+        <collision name='wall_front_c'>
+          <pose>0.20 0 0.10 0 0 0</pose>
+          <geometry><box><size>0.03 0.40 0.20</size></box></geometry>
+          <surface>
+            <bounce>
+              <restitution_coefficient>0.5</restitution_coefficient>
+              <threshold>0.01</threshold>
+            </bounce>
+            <friction>
+              <ode><mu>1.0</mu><mu2>1.0</mu2></ode>
+            </friction>
+            <contact>
+              <ode>
+                <kp>1000000</kp><kd>100</kd>
+                <max_vel>1.0</max_vel>
+                <min_depth>0.001</min_depth>
+              </ode>
+            </contact>
+          </surface>
+        </collision>
         <visual name='wall_back_v'>
           <pose>-0.20 0 0.10 0 0 0</pose>
           <geometry><box><size>0.03 0.40 0.20</size></box></geometry>
           <material><ambient>0.9 0.2 0.6 1</ambient><diffuse>0.9 0.2 0.6 1</diffuse></material>
         </visual>
+        <collision name='wall_back_c'>
+          <pose>-0.20 0 0.10 0 0 0</pose>
+          <geometry><box><size>0.03 0.40 0.20</size></box></geometry>
+          <surface>
+            <bounce>
+              <restitution_coefficient>0.5</restitution_coefficient>
+              <threshold>0.01</threshold>
+            </bounce>
+            <friction>
+              <ode><mu>1.0</mu><mu2>1.0</mu2></ode>
+            </friction>
+            <contact>
+              <ode>
+                <kp>1000000</kp><kd>100</kd>
+                <max_vel>1.0</max_vel>
+                <min_depth>0.001</min_depth>
+              </ode>
+            </contact>
+          </surface>
+        </collision>
         <visual name='wall_left_v'>
           <pose>0 0.20 0.10 0 0 0</pose>
           <geometry><box><size>0.40 0.03 0.20</size></box></geometry>
           <material><ambient>0.9 0.2 0.6 1</ambient><diffuse>0.9 0.2 0.6 1</diffuse></material>
         </visual>
+        <collision name='wall_left_c'>
+          <pose>0 0.20 0.10 0 0 0</pose>
+          <geometry><box><size>0.40 0.03 0.20</size></box></geometry>
+          <surface>
+            <bounce>
+              <restitution_coefficient>0.5</restitution_coefficient>
+              <threshold>0.01</threshold>
+            </bounce>
+            <friction>
+              <ode><mu>1.0</mu><mu2>1.0</mu2></ode>
+            </friction>
+            <contact>
+              <ode>
+                <kp>1000000</kp><kd>100</kd>
+                <max_vel>1.0</max_vel>
+                <min_depth>0.001</min_depth>
+              </ode>
+            </contact>
+          </surface>
+        </collision>
         <visual name='wall_right_v'>
           <pose>0 -0.20 0.10 0 0 0</pose>
           <geometry><box><size>0.40 0.03 0.20</size></box></geometry>
           <material><ambient>0.9 0.2 0.6 1</ambient><diffuse>0.9 0.2 0.6 1</diffuse></material>
         </visual>
+        <collision name='wall_right_c'>
+          <pose>0 -0.20 0.10 0 0 0</pose>
+          <geometry><box><size>0.40 0.03 0.20</size></box></geometry>
+          <surface>
+            <bounce>
+              <restitution_coefficient>0.5</restitution_coefficient>
+              <threshold>0.01</threshold>
+            </bounce>
+            <friction>
+              <ode><mu>1.0</mu><mu2>1.0</mu2></ode>
+            </friction>
+            <contact>
+              <ode>
+                <kp>1000000</kp><kd>100</kd>
+                <max_vel>1.0</max_vel>
+                <min_depth>0.001</min_depth>
+              </ode>
+            </contact>
+          </surface>
+        </collision>
       </link>
     </model>
 
@@ -461,26 +561,126 @@
           <geometry><box><size>0.40 0.40 0.01</size></box></geometry>
           <material><ambient>0.75 0.95 0.75 1</ambient><diffuse>0.75 0.95 0.75 1</diffuse></material>
         </visual>
+        <collision name='floor_c'>
+          <pose>0 0 0.005 0 0 0</pose>
+          <geometry><box><size>0.40 0.40 0.01</size></box></geometry>
+          <surface>
+            <bounce>
+              <restitution_coefficient>0.5</restitution_coefficient>
+              <threshold>0.01</threshold>
+            </bounce>
+            <friction>
+              <ode><mu>1.0</mu><mu2>1.0</mu2></ode>
+            </friction>
+            <contact>
+              <ode>
+                <kp>1000000</kp><kd>100</kd>
+                <max_vel>1.0</max_vel>
+                <min_depth>0.001</min_depth>
+              </ode>
+            </contact>
+          </surface>
+        </collision>
         <visual name='wall_front_v'>
           <pose>0.20 0 0.10 0 0 0</pose>
           <geometry><box><size>0.03 0.40 0.20</size></box></geometry>
           <material><ambient>0.6 0.9 0.1 1</ambient><diffuse>0.6 0.9 0.1 1</diffuse></material>
         </visual>
+        <collision name='wall_front_c'>
+          <pose>0.20 0 0.10 0 0 0</pose>
+          <geometry><box><size>0.03 0.40 0.20</size></box></geometry>
+          <surface>
+            <bounce>
+              <restitution_coefficient>0.5</restitution_coefficient>
+              <threshold>0.01</threshold>
+            </bounce>
+            <friction>
+              <ode><mu>1.0</mu><mu2>1.0</mu2></ode>
+            </friction>
+            <contact>
+              <ode>
+                <kp>1000000</kp><kd>100</kd>
+                <max_vel>1.0</max_vel>
+                <min_depth>0.001</min_depth>
+              </ode>
+            </contact>
+          </surface>
+        </collision>
         <visual name='wall_back_v'>
           <pose>-0.20 0 0.10 0 0 0</pose>
           <geometry><box><size>0.03 0.40 0.20</size></box></geometry>
           <material><ambient>0.6 0.9 0.1 1</ambient><diffuse>0.6 0.9 0.1 1</diffuse></material>
         </visual>
+        <collision name='wall_back_c'>
+          <pose>-0.20 0 0.10 0 0 0</pose>
+          <geometry><box><size>0.03 0.40 0.20</size></box></geometry>
+          <surface>
+            <bounce>
+              <restitution_coefficient>0.5</restitution_coefficient>
+              <threshold>0.01</threshold>
+            </bounce>
+            <friction>
+              <ode><mu>1.0</mu><mu2>1.0</mu2></ode>
+            </friction>
+            <contact>
+              <ode>
+                <kp>1000000</kp><kd>100</kd>
+                <max_vel>1.0</max_vel>
+                <min_depth>0.001</min_depth>
+              </ode>
+            </contact>
+          </surface>
+        </collision>
         <visual name='wall_left_v'>
           <pose>0 0.20 0.10 0 0 0</pose>
           <geometry><box><size>0.40 0.03 0.20</size></box></geometry>
           <material><ambient>0.6 0.9 0.1 1</ambient><diffuse>0.6 0.9 0.1 1</diffuse></material>
         </visual>
+        <collision name='wall_left_c'>
+          <pose>0 0.20 0.10 0 0 0</pose>
+          <geometry><box><size>0.40 0.03 0.20</size></box></geometry>
+          <surface>
+            <bounce>
+              <restitution_coefficient>0.5</restitution_coefficient>
+              <threshold>0.01</threshold>
+            </bounce>
+            <friction>
+              <ode><mu>1.0</mu><mu2>1.0</mu2></ode>
+            </friction>
+            <contact>
+              <ode>
+                <kp>1000000</kp><kd>100</kd>
+                <max_vel>1.0</max_vel>
+                <min_depth>0.001</min_depth>
+              </ode>
+            </contact>
+          </surface>
+        </collision>
         <visual name='wall_right_v'>
           <pose>0 -0.20 0.10 0 0 0</pose>
           <geometry><box><size>0.40 0.03 0.20</size></box></geometry>
           <material><ambient>0.6 0.9 0.1 1</ambient><diffuse>0.6 0.9 0.1 1</diffuse></material>
         </visual>
+        <collision name='wall_right_c'>
+          <pose>0 -0.20 0.10 0 0 0</pose>
+          <geometry><box><size>0.40 0.03 0.20</size></box></geometry>
+          <surface>
+            <bounce>
+              <restitution_coefficient>0.5</restitution_coefficient>
+              <threshold>0.01</threshold>
+            </bounce>
+            <friction>
+              <ode><mu>1.0</mu><mu2>1.0</mu2></ode>
+            </friction>
+            <contact>
+              <ode>
+                <kp>1000000</kp><kd>100</kd>
+                <max_vel>1.0</max_vel>
+                <min_depth>0.001</min_depth>
+              </ode>
+            </contact>
+          </surface>
+        </collision>
       </link>
     </model>
 
@@ -494,26 +694,126 @@
           <geometry><box><size>0.40 0.40 0.01</size></box></geometry>
           <material><ambient>0.75 0.85 0.95 1</ambient><diffuse>0.75 0.85 0.95 1</diffuse></material>
         </visual>
+        <collision name='floor_c'>
+          <pose>0 0 0.005 0 0 0</pose>
+          <geometry><box><size>0.40 0.40 0.01</size></box></geometry>
+          <surface>
+            <bounce>
+              <restitution_coefficient>0.5</restitution_coefficient>
+              <threshold>0.01</threshold>
+            </bounce>
+            <friction>
+              <ode><mu>1.0</mu><mu2>1.0</mu2></ode>
+            </friction>
+            <contact>
+              <ode>
+                <kp>1000000</kp><kd>100</kd>
+                <max_vel>1.0</max_vel>
+                <min_depth>0.001</min_depth>
+              </ode>
+            </contact>
+          </surface>
+        </collision>
         <visual name='wall_front_v'>
           <pose>0.20 0 0.10 0 0 0</pose>
           <geometry><box><size>0.03 0.40 0.20</size></box></geometry>
           <material><ambient>0.0 0.7 0.9 1</ambient><diffuse>0.0 0.7 0.9 1</diffuse></material>
         </visual>
+        <collision name='wall_front_c'>
+          <pose>0.20 0 0.10 0 0 0</pose>
+          <geometry><box><size>0.03 0.40 0.20</size></box></geometry>
+          <surface>
+            <bounce>
+              <restitution_coefficient>0.5</restitution_coefficient>
+              <threshold>0.01</threshold>
+            </bounce>
+            <friction>
+              <ode><mu>1.0</mu><mu2>1.0</mu2></ode>
+            </friction>
+            <contact>
+              <ode>
+                <kp>1000000</kp><kd>100</kd>
+                <max_vel>1.0</max_vel>
+                <min_depth>0.001</min_depth>
+              </ode>
+            </contact>
+          </surface>
+        </collision>
         <visual name='wall_back_v'>
           <pose>-0.20 0 0.10 0 0 0</pose>
           <geometry><box><size>0.03 0.40 0.20</size></box></geometry>
           <material><ambient>0.0 0.7 0.9 1</ambient><diffuse>0.0 0.7 0.9 1</diffuse></material>
         </visual>
+        <collision name='wall_back_c'>
+          <pose>-0.20 0 0.10 0 0 0</pose>
+          <geometry><box><size>0.03 0.40 0.20</size></box></geometry>
+          <surface>
+            <bounce>
+              <restitution_coefficient>0.5</restitution_coefficient>
+              <threshold>0.01</threshold>
+            </bounce>
+            <friction>
+              <ode><mu>1.0</mu><mu2>1.0</mu2></ode>
+            </friction>
+            <contact>
+              <ode>
+                <kp>1000000</kp><kd>100</kd>
+                <max_vel>1.0</max_vel>
+                <min_depth>0.001</min_depth>
+              </ode>
+            </contact>
+          </surface>
+        </collision>
         <visual name='wall_left_v'>
           <pose>0 0.20 0.10 0 0 0</pose>
           <geometry><box><size>0.40 0.03 0.20</size></box></geometry>
           <material><ambient>0.0 0.7 0.9 1</ambient><diffuse>0.0 0.7 0.9 1</diffuse></material>
         </visual>
+        <collision name='wall_left_c'>
+          <pose>0 0.20 0.10 0 0 0</pose>
+          <geometry><box><size>0.40 0.03 0.20</size></box></geometry>
+          <surface>
+            <bounce>
+              <restitution_coefficient>0.5</restitution_coefficient>
+              <threshold>0.01</threshold>
+            </bounce>
+            <friction>
+              <ode><mu>1.0</mu><mu2>1.0</mu2></ode>
+            </friction>
+            <contact>
+              <ode>
+                <kp>1000000</kp><kd>100</kd>
+                <max_vel>1.0</max_vel>
+                <min_depth>0.001</min_depth>
+              </ode>
+            </contact>
+          </surface>
+        </collision>
         <visual name='wall_right_v'>
           <pose>0 -0.20 0.10 0 0 0</pose>
           <geometry><box><size>0.40 0.03 0.20</size></box></geometry>
           <material><ambient>0.0 0.7 0.9 1</ambient><diffuse>0.0 0.7 0.9 1</diffuse></material>
         </visual>
+        <collision name='wall_right_c'>
+          <pose>0 -0.20 0.10 0 0 0</pose>
+          <geometry><box><size>0.40 0.03 0.20</size></box></geometry>
+          <surface>
+            <bounce>
+              <restitution_coefficient>0.5</restitution_coefficient>
+              <threshold>0.01</threshold>
+            </bounce>
+            <friction>
+              <ode><mu>1.0</mu><mu2>1.0</mu2></ode>
+            </friction>
+            <contact>
+              <ode>
+                <kp>1000000</kp><kd>100</kd>
+                <max_vel>1.0</max_vel>
+                <min_depth>0.001</min_depth>
+              </ode>
+            </contact>
+          </surface>
+        </collision>
       </link>
     </model>
 

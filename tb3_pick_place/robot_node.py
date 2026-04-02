@@ -10,6 +10,10 @@ import math
 import threading
 from typing import List, Optional, Tuple
 
+import rclpy
+import rclpy.time
+import rclpy.duration
+
 import numpy as np
 
 import rclpy
@@ -217,51 +221,12 @@ class RobotController(Node):
     _CUBE_NAMES = {"RED": "red_cube", "BLUE": "blue_cube", "GREEN": "green_cube"}
 
     def attach_cube(self, color: str):
-        """Attach cube to gripper using Gazebo model attachment plugin.
-        Creates a fixed joint so the cube physically follows the arm."""
-        cube_name = self._CUBE_NAMES.get(color)
-        if not cube_name:
-            return
-        if not self._attach_cli.service_is_ready():
-            self.get_logger().warn(f"Attach service not ready! Waiting...")
-            self._attach_cli.wait_for_service(timeout_sec=5.0)
-        req = Attach.Request()
-        req.joint_name = f'{cube_name}_grasp'
-        req.model_name_1 = 'turtlebot3_manipulation_system'
-        req.link_name_1 = 'gripper_left_link'
-        req.model_name_2 = cube_name
-        req.link_name_2 = 'link'
-        future = self._attach_cli.call_async(req)
-        future.add_done_callback(
-            lambda f: self._log_service_result(f, f"Attach {cube_name}"))
-        self.get_logger().info(f"Attaching {cube_name} to gripper...")
+        """No-op: physical grasp only -- gripper holds cube via friction."""
+        self.get_logger().info(f"Physical grasp: gripper holding {color} cube")
 
     def detach_cube(self, color: str):
-        """Detach cube from gripper -- cube becomes free again."""
-        cube_name = self._CUBE_NAMES.get(color)
-        if not cube_name:
-            return
-        if not self._detach_cli.service_is_ready():
-            self.get_logger().warn(f"Detach service not ready! Waiting...")
-            self._detach_cli.wait_for_service(timeout_sec=5.0)
-        req = Detach.Request()
-        req.joint_name = f'{cube_name}_grasp'
-        req.model_name_1 = 'turtlebot3_manipulation_system'
-        req.model_name_2 = cube_name
-        future = self._detach_cli.call_async(req)
-        future.add_done_callback(
-            lambda f: self._log_service_result(f, f"Detach {cube_name}"))
-        self.get_logger().info(f"Detaching {cube_name} from gripper...")
-
-    def _log_service_result(self, future, label: str):
-        try:
-            result = future.result()
-            if result.success:
-                self.get_logger().info(f"{label}: SUCCESS - {result.message}")
-            else:
-                self.get_logger().error(f"{label}: FAILED - {result.message}")
-        except Exception as e:
-            self.get_logger().error(f"{label}: Exception - {e}")
+        """No-op: physical release -- gripper opens and cube drops."""
+        self.get_logger().info(f"Physical release: opening gripper for {color} cube")
 
     def carry_cube(self, color: str):
         """No-op: cube is physically attached via fixed joint."""
