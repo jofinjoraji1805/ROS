@@ -20,7 +20,7 @@ from typing import Callable, List, Optional, Tuple
 from .config import (
     ST_IDLE, ST_NAV_TO_CUBE, ST_DRIVE_TO_CUBE, ST_SEARCH_OBJECT, ST_ALIGN_OBJECT,
     ST_APPROACH_OBJECT, ST_ADJUST_POSITION, ST_ALIGN_TABLE, ST_PICK_OBJECT,
-    ST_BACKUP_PICK, ST_NAV_TO_ZONE, ST_SEARCH_DROP_ZONE,
+    ST_BACKUP_PICK, ST_NAV_TO_ZONE, ST_DRIVE_TO_ZONE, ST_SEARCH_DROP_ZONE,
     ST_APPROACH_DROP, ST_ADJUST_DROP, ST_PLACE_OBJECT,
     ST_BACKUP_DROP, ST_NEXT_OBJECT, ST_RETURN_HOME, ST_DONE,
     SCAN_ANG_VEL, ALIGN_CENTER_PX, ALIGN_KP, ALIGN_LOST_MAX,
@@ -31,7 +31,7 @@ from .config import (
     ZONE_CLOSE_AREA, ZONE_APPROACH_TIME, ZONE_FINAL_TIME,
     ZONE_FINAL_VEL, ZONE_ADJUST_TIME, RETURN_HOME_THRESH,
     TABLE_STOP_DISTANCE, OBSTACLE_SLOW_DISTANCE, OBSTACLE_SLOW_FACTOR,
-    CUBE_NAV_TARGETS, ZONE_NAV_TARGETS,
+    CUBE_NAV_TARGETS, ZONE_NAV_TARGETS, ZONE_BOX_CENTER,
     CUBE_FACE_YAW, ZONE_FACE_YAW, FACE_YAW_TOLERANCE,
     ALIGN_TABLE_KP, ALIGN_TABLE_SLOPE_THRESH, ALIGN_TABLE_TIMEOUT,
     CUBE_TABLE_Y,
@@ -171,17 +171,17 @@ class StateMachine:
 
     def _start_nav_to_zone(self, task: TaskDef):
         lbl = task.label
-        target = ZONE_NAV_TARGETS.get(lbl)
-        if target and self.navigator.map_loaded:
-            ok = self.navigator.navigate_to(*target)
-            if ok:
-                self.state = ST_NAV_TO_ZONE
-                self.status_text = f"[{lbl}] Navigating to {lbl} drop zone..."
-                self._log(self.status_text)
-                return
-        # Fallback
-        self.state = ST_SEARCH_DROP_ZONE
-        self.status_text = f"[{lbl}] Scanning for {lbl} drop zone..."
+        waypoints = ZONE_NAV_TARGETS.get(lbl)
+        if waypoints:
+            self._zone_wps = list(waypoints)
+            self._zone_wp_idx = 0
+            self.state = ST_DRIVE_TO_ZONE
+            self._phase_start = time.time()
+            self.status_text = f"[{lbl}] L-path to {lbl} drop zone..."
+            self._log(self.status_text)
+        else:
+            self.state = ST_SEARCH_DROP_ZONE
+            self.status_text = f"[{lbl}] Scanning for {lbl} drop zone..."
 
     # ── Find + label ─────────────────────────────────────────────────
 
@@ -227,6 +227,7 @@ class StateMachine:
             ST_PICK_OBJECT: self._pick_object,
             ST_BACKUP_PICK: self._backup_pick,
             ST_NAV_TO_ZONE: self._nav_to_zone,
+            ST_DRIVE_TO_ZONE: self._drive_to_zone,
             ST_SEARCH_DROP_ZONE: self._search_drop_zone,
             ST_APPROACH_DROP: self._approach_drop,
             ST_ADJUST_DROP: self._adjust_drop,
@@ -238,12 +239,14 @@ class StateMachine:
         if handler:
             handler(task, lbl)
 
-        # Keep cube following robot during carry/nav states
+        # Keep cube following robot during carry/transport states (teleport)
         if self._robot and self.state in (
-            ST_BACKUP_PICK, ST_NAV_TO_ZONE, ST_SEARCH_DROP_ZONE,
-            ST_APPROACH_DROP, ST_ADJUST_DROP, ST_PLACE_OBJECT,
+            ST_PICK_OBJECT, ST_BACKUP_PICK, ST_DRIVE_TO_ZONE, ST_NAV_TO_ZONE,
+            ST_SEARCH_DROP_ZONE, ST_APPROACH_DROP, ST_ADJUST_DROP,
+            ST_PLACE_OBJECT,
         ):
-            self._robot.carry_cube(lbl)
+            if self.state != ST_PICK_OBJECT or self._pick_phase >= 4:
+                self._robot.carry_cube(lbl)
 
     # ── NAV_TO_CUBE: A* navigation to cube approach point ────────────
 
@@ -260,27 +263,67 @@ class StateMachine:
         self._facing = True
         self._face_target = CUBE_FACE_YAW
 
-    # ── NAV_TO_ZONE: A* navigation to drop zone approach point ───────
+    # ── NAV_TO_ZONE: face basket then go to place ─────────────────────
 
     def _nav_to_zone(self, task: TaskDef, lbl: str):
+        """After L-path drive completes, face +X and go straight to PLACE."""
         if self._facing:
             if self._face_yaw_tick(lbl):
-                self.state = ST_SEARCH_DROP_ZONE
-                self._lost_count = 0
-                self._log(f"[{lbl}] Facing basket -- scanning...")
+                self.motion.stop()
+                self.state = ST_PLACE_OBJECT
+                self._drop_phase = 0
+                self._drop_timer = time.time()
+                self._log(f"[{lbl}] Facing basket -- dropping cube...")
+            return
+        self._facing = True
+        self._face_target = ZONE_FACE_YAW
+
+    # ── DRIVE_TO_ZONE: odom L-path to drop zone ────────────────────────
+
+    def _drive_to_zone(self, task: TaskDef, lbl: str):
+        """L-path drive to drop zone: follow waypoints using odometry."""
+        if not hasattr(self, '_zone_wps') or self._zone_wp_idx >= len(self._zone_wps):
+            # All waypoints done -- face basket and place
+            self.motion.stop()
+            self._facing = True
+            self._face_target = ZONE_FACE_YAW
+            self.state = ST_NAV_TO_ZONE
+            self._log(f"[{lbl}] At drop zone -- facing basket...")
             return
 
-        self.navigator.tick()
-        self.status_text = f"[{lbl}] {self.navigator.status_text}"
+        tx, ty = self._zone_wps[self._zone_wp_idx]
+        x, y, yaw = self._get_odom()
+        dx = tx - x
+        dy = ty - y
+        dist = math.sqrt(dx * dx + dy * dy)
 
-        if self.navigator.is_done():
+        if dist < 0.15:
+            self._zone_wp_idx += 1
+            self._log(f"[{lbl}] Zone waypoint {self._zone_wp_idx}/{len(self._zone_wps)} reached")
+            return
+
+        elapsed = time.time() - self._phase_start
+        if elapsed > 60.0:
+            self.motion.stop()
             self._facing = True
             self._face_target = ZONE_FACE_YAW
-            self._log(f"[{lbl}] Near zone -- turning to face basket...")
-        elif self.navigator.has_failed():
-            self._facing = True
-            self._face_target = ZONE_FACE_YAW
-            self._log(f"[{lbl}] Nav failed -- turning to face basket...")
+            self.state = ST_NAV_TO_ZONE
+            self._log(f"[{lbl}] Zone drive timeout -- facing basket...")
+            return
+
+        target_yaw = math.atan2(dy, dx)
+        yaw_err = target_yaw - yaw
+        while yaw_err > math.pi:  yaw_err -= 2 * math.pi
+        while yaw_err < -math.pi: yaw_err += 2 * math.pi
+
+        if abs(yaw_err) > 0.15:
+            ang = max(-0.4, min(0.4, 1.5 * yaw_err))
+            self.motion.publish(lx=0.0, az=ang)
+        else:
+            ang = max(-0.3, min(0.3, 1.0 * yaw_err))
+            speed = min(0.15, 0.08 + 0.05 * dist)
+            self.motion.publish(lx=speed, az=ang)
+        self.status_text = f"[{lbl}] -> zone wp{self._zone_wp_idx+1} d={dist:.2f}m"
 
     # ── DRIVE_TO_CUBE: simple odom drive to approach point (no map) ────
 
@@ -582,7 +625,7 @@ class StateMachine:
         # ── Phase 2: Final creep to pick distance ──
         elif self._align_phase == 2:
             front_d = self.lidar.get_front_distance()
-            pick_dist = 0.20  # target distance from table
+            pick_dist = 0.19  # target distance from table
 
             if front_d <= pick_dist:
                 self.motion.stop()
@@ -614,8 +657,8 @@ class StateMachine:
         t = time.time() - self._pick_timer
         p = self._pick_phase
 
-        # Simulated pick: teleport cube to gripper early to avoid arm collision.
-        # Sequence: open gripper → ready → pre_pick → TELEPORT cube → close → lift → carry
+        # Teleport grasp: arm goes to pick pose, then teleport cube into gripper
+        # (Gazebo can't reliably collide thin gripper fingers with 25mm cube)
         if p == 0:
             self.motion.stop()
             self.arm.open_gripper()
@@ -626,23 +669,22 @@ class StateMachine:
             self._pick_phase = 2; self._pick_timer = time.time()
             self.status_text = f"[{lbl}] Arm ready..."
         elif p == 2 and t > 4.0:
-            # Teleport cube to gripper BEFORE arm reaches down
+            self.arm.pick(4.0, color=lbl)
+            self._pick_phase = 3; self._pick_timer = time.time()
+            self.status_text = f"[{lbl}] Reaching for cube..."
+        elif p == 3 and t > 5.0:
+            # Teleport cube into gripper position + close
             if self._robot:
                 self._robot.attach_cube(lbl)
-            self.arm.pre_pick(3.0, color=lbl)
-            self._pick_phase = 3; self._pick_timer = time.time()
-            self.status_text = f"[{lbl}] Grabbing cube..."
-            self._log(f"[{lbl}] Cube grabbed (simulated grasp)")
-        elif p == 3 and t > 4.0:
-            # Close gripper around the teleported cube
-            self.arm.gripper(-0.010, effort=20.0)
+            self.arm.close_gripper()
             self._pick_phase = 4; self._pick_timer = time.time()
-            self.status_text = f"[{lbl}] Closing gripper..."
+            self.status_text = f"[{lbl}] Gripping cube (teleport)..."
+            self._log(f"[{lbl}] Cube attached to gripper!")
         elif p == 4 and t > 2.0:
-            self.arm.lift(3.0, color=lbl)
+            self.arm.lift(4.0, color=lbl)
             self._pick_phase = 5; self._pick_timer = time.time()
             self.status_text = f"[{lbl}] Lifting..."
-        elif p == 5 and t > 4.0:
+        elif p == 5 and t > 5.0:
             self.arm.carry(3.0)
             self._pick_phase = 6; self._pick_timer = time.time()
             self.status_text = f"[{lbl}] Carrying..."
@@ -760,29 +802,28 @@ class StateMachine:
     # ── PLACE: drop cube INTO basket from above ──────────────────────
 
     def _place_object(self, task: TaskDef, lbl: str):
-        """Drop cube from above into basket. Arm extends over basket,
-        gripper opens, cube falls in."""
+        """Drop cube into basket. Robot is at box edge facing +X.
+        Arm extends over the wall, opens gripper, cube drops into box center."""
         t = time.time() - self._drop_timer
         p = self._drop_phase
 
         if p == 0:
+            self.motion.stop()
             self.arm.drop_extend(3.0)
             self._drop_phase = 1; self._drop_timer = time.time()
-            self.status_text = f"[{lbl}] Extending arm above basket..."
-        elif p == 1 and t > 3.5:
+            self.status_text = f"[{lbl}] Extending arm over basket wall..."
+        elif p == 1 and t > 4.0:
             self.arm.drop_over(3.0)
             self._drop_phase = 2; self._drop_timer = time.time()
-            self.status_text = f"[{lbl}] Positioning over basket..."
-        elif p == 2 and t > 3.5:
-            self.arm.open_gripper()
-            # Simulated drop: place cube at drop zone location
+            self.status_text = f"[{lbl}] Positioning over basket center..."
+        elif p == 2 and t > 4.0:
+            # Detach cube from gripper (remove fixed joint) then open gripper
             if self._robot:
-                x, y, _ = self._get_odom()
-                drop_x = x + 0.20 * math.cos(self._get_odom()[2])
-                drop_y = y + 0.20 * math.sin(self._get_odom()[2])
-                self._robot.drop_cube(lbl, drop_x, drop_y, 0.05)
+                self._robot.detach_cube(lbl)
+            self.arm.open_gripper()
             self._drop_phase = 3; self._drop_timer = time.time()
-            self.status_text = f"[{lbl}] DROPPING -- cube falling into basket!"
+            self.status_text = f"[{lbl}] DROPPING -- cube into basket!"
+            self._log(f"[{lbl}] Cube detached and dropped!")
         elif p == 3 and t > 2.5:
             self.arm.drop_retreat(3.0)
             self._drop_phase = 4; self._drop_timer = time.time()

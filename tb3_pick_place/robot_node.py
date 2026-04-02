@@ -22,6 +22,7 @@ from trajectory_msgs.msg import JointTrajectory
 from control_msgs.action import GripperCommand as GripperCommandAction
 from gazebo_msgs.srv import SetEntityState
 from gazebo_msgs.msg import EntityState
+from gazebo_model_attachment_plugin_msgs.srv import Attach, Detach
 from std_srvs.srv import Trigger
 from cv_bridge import CvBridge
 
@@ -81,9 +82,13 @@ class RobotController(Node):
         self.motion = MotionController(self._cmd_pub)
         self.arm = ArmController(arm_pub, gripper_ac)
 
-        # ── Gazebo entity state (for cube attach/detach) ────────────
+        # ── Gazebo entity state (for cube teleport/drop) ─────────────
         self._set_entity_cli = self.create_client(
             SetEntityState, '/gazebo/set_entity_state')
+
+        # ── Model attachment plugin (for physical grasp) ────────────
+        self._attach_cli = self.create_client(Attach, '/attach')
+        self._detach_cli = self.create_client(Detach, '/detach')
 
         self.get_logger().info("Waiting for gripper action server...")
         gripper_ac.wait_for_server(timeout_sec=10.0)
@@ -212,38 +217,35 @@ class RobotController(Node):
     _CUBE_NAMES = {"RED": "red_cube", "BLUE": "blue_cube", "GREEN": "green_cube"}
 
     def attach_cube(self, color: str):
-        """Teleport cube to gripper position (simulated grasp)."""
+        """Attach cube to gripper using Gazebo model attachment plugin.
+        Creates a fixed joint so the cube physically follows the arm."""
         cube_name = self._CUBE_NAMES.get(color)
         if not cube_name:
             return
-        req = SetEntityState.Request()
-        state = EntityState()
-        state.name = cube_name
-        # Place relative to robot: slightly in front and at gripper height
-        state.pose.position.x = self._odom_x + 0.10 * math.cos(self._odom_yaw)
-        state.pose.position.y = self._odom_y + 0.10 * math.sin(self._odom_yaw)
-        state.pose.position.z = 0.26  # lifted height
-        state.pose.orientation.w = 1.0
-        state.reference_frame = 'world'
-        req.state = state
-        self._set_entity_cli.call_async(req)
-        self.get_logger().info(f"Attached {cube_name} to gripper (simulated)")
+        req = Attach.Request()
+        req.joint_name = f'{cube_name}_grasp'
+        req.model_name_1 = 'turtlebot3_manipulation_system'
+        req.link_name_1 = 'gripper_left_link'
+        req.model_name_2 = cube_name
+        req.link_name_2 = 'link'
+        self._attach_cli.call_async(req)
+        self.get_logger().info(f"Attached {cube_name} to gripper (fixed joint)")
+
+    def detach_cube(self, color: str):
+        """Detach cube from gripper -- cube becomes free again."""
+        cube_name = self._CUBE_NAMES.get(color)
+        if not cube_name:
+            return
+        req = Detach.Request()
+        req.joint_name = f'{cube_name}_grasp'
+        req.model_name_1 = 'turtlebot3_manipulation_system'
+        req.model_name_2 = cube_name
+        self._detach_cli.call_async(req)
+        self.get_logger().info(f"Detached {cube_name} from gripper")
 
     def carry_cube(self, color: str):
-        """Keep cube near robot body during carry."""
-        cube_name = self._CUBE_NAMES.get(color)
-        if not cube_name:
-            return
-        req = SetEntityState.Request()
-        state = EntityState()
-        state.name = cube_name
-        state.pose.position.x = self._odom_x
-        state.pose.position.y = self._odom_y
-        state.pose.position.z = 0.25
-        state.pose.orientation.w = 1.0
-        state.reference_frame = 'world'
-        req.state = state
-        self._set_entity_cli.call_async(req)
+        """No-op: cube is physically attached via fixed joint."""
+        pass
 
     def drop_cube(self, color: str, x: float, y: float, z: float = 0.05):
         """Place cube at drop location."""

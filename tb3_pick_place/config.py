@@ -71,9 +71,15 @@ CUBE_NAV_TARGETS = {
     "GREEN": [(0.5, 1.5),  (0.0, 1.5)],    # stage at y=1.5, then approach
 }
 ZONE_NAV_TARGETS = {
-    "RED":   (1.0, 1.5),    # approach red drop zone
-    "BLUE":  (1.0, -1.5),   # approach blue drop zone
-    "GREEN": (1.0, 0.0),    # approach green drop zone
+    "RED":   [(0.5, 1.5),  (1.78, 1.5)],    # L-path: right at box back wall (x=1.80)
+    "BLUE":  [(0.5, -1.5), (1.78, -1.5)],   # L-path: right at box back wall
+    "GREEN": [(0.5, 0.0),  (1.78, 0.0)],    # L-path: right at box back wall
+}
+# Drop zone box centers (for teleport drop)
+ZONE_BOX_CENTER = {
+    "RED":   (2.0, 1.5),
+    "BLUE":  (2.0, -1.5),
+    "GREEN": (2.0, 0.0),
 }
 
 # Known table Y-coordinates for odom-based lateral correction during approach
@@ -132,28 +138,28 @@ RETURN_HOME_THRESH = 0.20
 ARM_HOME = [0.0, -1.0, 0.3, 0.7]
 # READY: arm raised, preparing to extend toward cube
 ARM_READY = [0.0, -0.6, 0.3, 0.3]
-# PRE_PICK: arm extended forward ABOVE cube -- hover high to avoid hitting cube
-ARM_PRE_PICK = [0.0, 0.15, 0.35, -0.50]
-# PICK: gripper lowered to cube height -- reduced forward reach to avoid pushing cube
-ARM_PICK = [0.0, 0.40, 0.40, -0.80]
+# PRE_PICK: arm extended forward, gripper ABOVE the cube
+ARM_PRE_PICK = [0.0, 0.30, 0.50, -0.80]
+# PICK: gripper lowered to cube height on table
+ARM_PICK = [0.0, 0.50, 0.50, -1.00]
 # LIFT: raise cube off table
 ARM_LIFT = [0.0, -0.1, 0.55, -0.45]
 
-# RED cube: same as default (perpendicular alignment handles centering)
-ARM_PRE_PICK_RED = [0.0, 0.15, 0.35, -0.50]
-ARM_PICK_RED = [0.0, 0.40, 0.40, -0.80]
+# RED cube: same as default
+ARM_PRE_PICK_RED = [0.0, 0.30, 0.50, -0.80]
+ARM_PICK_RED = [0.0, 0.50, 0.50, -1.00]
 ARM_LIFT_RED = [0.0, -0.1, 0.55, -0.45]
 # CARRY: compact carry position, cube held close to body
 ARM_CARRY = [0.0, -0.8, 0.2, 0.6]
-# Drop into basket from above (arm extended forward + high to clear 0.20m walls)
-ARM_DROP_EXTEND = [0.0, -0.30, 0.60, -0.30]   # extended forward, gripper above basket
-ARM_DROP_OVER = [0.0, -0.10, 0.80, -0.70]      # lower toward basket opening
-ARM_DROP_RETREAT = [0.0, -0.50, 0.50, 0.00]    # pull back after release
+# Drop into basket: arm extended FORWARD, gripper reaches PAST the wall and INTO the box
+ARM_DROP_EXTEND = [0.0, 0.05, 0.05, -0.10]     # arm stretched forward, slightly above wall height
+ARM_DROP_OVER = [0.0, 0.25, 0.05, -0.30]       # shoulder tilts down, gripper drops well inside box
+ARM_DROP_RETREAT = [0.0, -0.50, 0.30, 0.20]    # pull arm back after release
 
 # ── Gripper ──────────────────────────────────────────────────────────
 GRIPPER_OPEN = 0.019
 GRIPPER_CLOSE = -0.010            # firm close to actually grip cube
-GRIPPER_EFFORT = 15.0             # firm effort for reliable grip
+GRIPPER_EFFORT = 100.0            # max effort for physical grip with friction
 
 # ── Manual teleop ────────────────────────────────────────────────────
 TELEOP_LINEAR = 0.10
@@ -171,6 +177,7 @@ ST_ALIGN_TABLE = "ALIGN_TABLE"
 ST_PICK_OBJECT = "PICK_OBJECT"
 ST_BACKUP_PICK = "BACKUP_PICK"
 ST_NAV_TO_ZONE = "NAV_TO_ZONE"
+ST_DRIVE_TO_ZONE = "DRIVE_TO_ZONE"
 ST_SEARCH_DROP_ZONE = "SEARCH_DROP_ZONE"
 ST_APPROACH_DROP = "APPROACH_DROP"
 ST_ADJUST_DROP = "ADJUST_DROP"
