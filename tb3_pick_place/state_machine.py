@@ -239,14 +239,6 @@ class StateMachine:
         if handler:
             handler(task, lbl)
 
-        # Keep cube following robot during carry/transport states (attached via joint)
-        if self._robot and self.state in (
-            ST_PICK_OBJECT, ST_BACKUP_PICK, ST_DRIVE_TO_ZONE, ST_NAV_TO_ZONE,
-            ST_SEARCH_DROP_ZONE, ST_APPROACH_DROP, ST_ADJUST_DROP,
-            ST_PLACE_OBJECT,
-        ):
-            if self.state != ST_PICK_OBJECT or self._pick_phase >= 4:
-                self._robot.carry_cube(lbl)
 
     # ── NAV_TO_CUBE: A* navigation to cube approach point ────────────
 
@@ -657,7 +649,7 @@ class StateMachine:
         t = time.time() - self._pick_timer
         p = self._pick_phase
 
-        # Arm goes to pick pose, then attach cube via fixed joint (model attachment plugin)
+        # Physical grasp: arm reaches cube, gripper closes on it, then lift
         if p == 0:
             self.motion.stop()
             self.arm.open_gripper()
@@ -672,14 +664,14 @@ class StateMachine:
             self._pick_phase = 3; self._pick_timer = time.time()
             self.status_text = f"[{lbl}] Reaching for cube..."
         elif p == 3 and t > 5.0:
-            # Attach cube to gripper via fixed joint + close gripper
+            # Close gripper on cube + attach via plugin for physics hold
+            self.arm.close_gripper()
             if self._robot:
                 self._robot.attach_cube(lbl)
-            self.arm.close_gripper()
             self._pick_phase = 4; self._pick_timer = time.time()
-            self.status_text = f"[{lbl}] Gripping cube (attached)..."
-            self._log(f"[{lbl}] Cube attached to gripper!")
-        elif p == 4 and t > 2.0:
+            self.status_text = f"[{lbl}] Gripping cube..."
+            self._log(f"[{lbl}] Gripper closed + cube attached!")
+        elif p == 4 and t > 2.5:
             self.arm.lift(4.0, color=lbl)
             self._pick_phase = 5; self._pick_timer = time.time()
             self.status_text = f"[{lbl}] Lifting..."
@@ -816,13 +808,13 @@ class StateMachine:
             self._drop_phase = 2; self._drop_timer = time.time()
             self.status_text = f"[{lbl}] Positioning over basket center..."
         elif p == 2 and t > 4.0:
-            # Detach cube from gripper (remove fixed joint) then open gripper
+            # Detach cube + open gripper to release
             if self._robot:
                 self._robot.detach_cube(lbl)
             self.arm.open_gripper()
             self._drop_phase = 3; self._drop_timer = time.time()
             self.status_text = f"[{lbl}] DROPPING -- cube into basket!"
-            self._log(f"[{lbl}] Cube detached and dropped!")
+            self._log(f"[{lbl}] Cube detached + gripper opened!")
         elif p == 3 and t > 2.5:
             self.arm.drop_retreat(3.0)
             self._drop_phase = 4; self._drop_timer = time.time()

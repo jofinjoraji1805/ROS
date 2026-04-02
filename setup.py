@@ -16,6 +16,8 @@ setup(
          glob('launch/*.launch.py')),
         (os.path.join('share', package_name, 'worlds'),
          glob('worlds/*.world')),
+        (os.path.join('share', package_name, 'urdf'),
+         ['urdf/turtlebot3_manipulation_grasp.urdf.xacro']),
         (os.path.join('share', package_name, 'yolomodel'),
          glob('yolomodel/*')),
     ],
