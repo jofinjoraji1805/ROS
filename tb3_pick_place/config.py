@@ -141,13 +141,13 @@ ARM_READY = [0.0, -0.6, 0.3, 0.3]
 # PRE_PICK: arm extended forward, gripper clearly ABOVE the cube
 ARM_PRE_PICK = [0.0, 0.20, 0.50, -0.70]
 # PICK: fingertips at cube mid-height (wider 30mm cube)
-ARM_PICK = [0.0, 0.39, 0.50, -0.89]
+ARM_PICK = [0.0, 0.38, 0.50, -0.88]
 # LIFT: raise cube off table
 ARM_LIFT = [0.0, -0.1, 0.55, -0.45]
 
 # RED cube: same as default
 ARM_PRE_PICK_RED = [0.0, 0.20, 0.50, -0.70]
-ARM_PICK_RED = [0.0, 0.39, 0.50, -0.89]
+ARM_PICK_RED = [0.0, 0.38, 0.50, -0.88]
 ARM_LIFT_RED = [0.0, -0.1, 0.55, -0.45]
 # CARRY: compact carry position, cube held close to body
 ARM_CARRY = [0.0, -0.8, 0.2, 0.6]
@@ -157,7 +157,7 @@ ARM_DROP_OVER = [0.0, 0.25, 0.05, -0.30]       # shoulder tilts down, gripper dr
 ARM_DROP_RETREAT = [0.0, -0.50, 0.30, 0.20]    # pull arm back after release
 
 # ── Gripper ──────────────────────────────────────────────────────────
-GRIPPER_OPEN = 0.01
+GRIPPER_OPEN = 0.019
 GRIPPER_CLOSE = -0.015            # maximum close — squeeze to cube width
 GRIPPER_EFFORT = 200.0            # max effort to squeeze and hold
 

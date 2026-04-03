@@ -253,7 +253,7 @@
           </inertia>
         </inertial>
         <collision name='collision'>
-          <geometry><box><size>0.030 0.030 0.045</size></box></geometry>
+          <geometry><box><size>0.025 0.025 0.045</size></box></geometry>
           <surface>
             <friction>
               <ode><mu>1000.0</mu><mu2>1000.0</mu2><fdir1>0 0 0</fdir1></ode>
@@ -273,7 +273,7 @@
           </surface>
         </collision>
         <visual name='visual'>
-          <geometry><box><size>0.030 0.030 0.045</size></box></geometry>
+          <geometry><box><size>0.025 0.025 0.045</size></box></geometry>
           <material>
             <ambient>0.1 0.8 0.1 1</ambient>
             <diffuse>0.1 0.9 0.1 1</diffuse>
@@ -331,7 +331,7 @@
           </inertia>
         </inertial>
         <collision name='collision'>
-          <geometry><box><size>0.030 0.030 0.045</size></box></geometry>
+          <geometry><box><size>0.025 0.025 0.045</size></box></geometry>
           <surface>
             <friction>
               <ode><mu>1000.0</mu><mu2>1000.0</mu2><fdir1>0 0 0</fdir1></ode>
@@ -351,7 +351,7 @@
           </surface>
         </collision>
         <visual name='visual'>
-          <geometry><box><size>0.030 0.030 0.045</size></box></geometry>
+          <geometry><box><size>0.025 0.025 0.045</size></box></geometry>
           <material>
             <ambient>0.1 0.1 0.9 1</ambient>
             <diffuse>0.1 0.1 0.95 1</diffuse>
@@ -409,7 +409,7 @@
           </inertia>
         </inertial>
         <collision name='collision'>
-          <geometry><box><size>0.030 0.030 0.045</size></box></geometry>
+          <geometry><box><size>0.025 0.025 0.045</size></box></geometry>
           <surface>
             <friction>
               <ode><mu>1000.0</mu><mu2>1000.0</mu2><fdir1>0 0 0</fdir1></ode>
@@ -429,7 +429,7 @@
           </surface>
         </collision>
         <visual name='visual'>
-          <geometry><box><size>0.030 0.030 0.045</size></box></geometry>
+          <geometry><box><size>0.025 0.025 0.045</size></box></geometry>
           <material>
             <ambient>0.9 0.2 0.2 1</ambient>
             <diffuse>0.95 0.2 0.2 1</diffuse>
