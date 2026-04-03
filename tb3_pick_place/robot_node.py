@@ -26,7 +26,8 @@ from trajectory_msgs.msg import JointTrajectory
 from control_msgs.action import GripperCommand as GripperCommandAction
 from gazebo_msgs.srv import SetEntityState
 from gazebo_msgs.msg import EntityState
-from gazebo_model_attachment_plugin_msgs.srv import Attach, Detach
+from linkattacher_msgs.srv import AttachLink, DetachLink
+from gazebo_msgs.msg import ContactsState
 from std_srvs.srv import Trigger
 from cv_bridge import CvBridge
 
@@ -90,9 +91,22 @@ class RobotController(Node):
         self._set_entity_cli = self.create_client(
             SetEntityState, '/gazebo/set_entity_state')
 
-        # ── Model attachment plugin (for physical grasp) ────────────
-        self._attach_cli = self.create_client(Attach, '/gazebo/attach')
-        self._detach_cli = self.create_client(Detach, '/gazebo/detach')
+        # ── IFRA Link Attacher (for pick-and-place grasp) ────────────
+        self._attach_cli = self.create_client(AttachLink, '/ATTACHLINK')
+        self._detach_cli = self.create_client(DetachLink, '/DETACHLINK')
+
+        # ── Contact sensors on gripper fingers ──────────────────────
+        self._left_contact = False
+        self._right_contact = False
+        self._grasp_armed = False  # set True when we want to detect grasp
+        self._grasp_attached = False  # True after attach is called
+        self._grasp_target_color = ""
+        self.create_subscription(
+            ContactsState, '/gripper/left_finger_contact',
+            self._left_contact_cb, 5)
+        self.create_subscription(
+            ContactsState, '/gripper/right_finger_contact',
+            self._right_contact_cb, 5)
 
         self.get_logger().info("Waiting for gripper action server...")
         gripper_ac.wait_for_server(timeout_sec=10.0)
@@ -220,52 +234,84 @@ class RobotController(Node):
 
     _CUBE_NAMES = {"RED": "red_cube", "BLUE": "blue_cube", "GREEN": "green_cube"}
 
+    # ── Contact sensor callbacks ─────────────────────────────────
+
+    def _left_contact_cb(self, msg: ContactsState):
+        self._left_contact = len(msg.states) > 0
+        self._check_grasp()
+
+    def _right_contact_cb(self, msg: ContactsState):
+        self._right_contact = len(msg.states) > 0
+        self._check_grasp()
+
+    def _check_grasp(self):
+        """Auto-attach when both fingers detect contact and grasp is armed."""
+        if self._grasp_armed and not self._grasp_attached:
+            if self._left_contact or self._right_contact:
+                self.get_logger().info(
+                    f"Contact detected! L={self._left_contact} R={self._right_contact} — attaching...")
+                self.attach_cube(self._grasp_target_color)
+                self._grasp_attached = True
+                self._grasp_armed = False
+
+    def arm_grasp(self, color: str):
+        """Arm the grasp detector — will auto-attach on finger contact."""
+        self._grasp_armed = True
+        self._grasp_attached = False
+        self._grasp_target_color = color
+        self._left_contact = False
+        self._right_contact = False
+        self.get_logger().info(f"Grasp armed for {color}")
+
+    def is_grasp_attached(self) -> bool:
+        return self._grasp_attached
+
+    def disarm_grasp(self):
+        self._grasp_armed = False
+        self._grasp_attached = False
+
     def attach_cube(self, color: str):
-        """Stabilize grip: after gripper physically closes, lock cube with fixed joint.
-        The cube is already centered by physical contact, this just prevents ODE wobble."""
+        """Attach cube to gripper using IFRA LinkAttacher fixed joint."""
         cube_name = self._CUBE_NAMES.get(color)
         if not cube_name:
             return
         if not self._attach_cli.service_is_ready():
-            self.get_logger().warn("Attach service not ready! Waiting...")
+            self.get_logger().warn("ATTACHLINK service not ready! Waiting...")
             self._attach_cli.wait_for_service(timeout_sec=5.0)
-        req = Attach.Request()
-        req.joint_name = f'{cube_name}_grasp'
-        req.model_name_1 = 'turtlebot3_manipulation_system'
-        req.link_name_1 = 'gripper_left_link'
-        req.model_name_2 = cube_name
-        req.link_name_2 = 'link'
+        req = AttachLink.Request()
+        req.model1_name = 'turtlebot3_manipulation_system'
+        req.link1_name = 'gripper_left_link'
+        req.model2_name = cube_name
+        req.link2_name = 'link'
         future = self._attach_cli.call_async(req)
         future.add_done_callback(
             lambda f: self._log_attach_result(f, f"Attach {cube_name}"))
-        self.get_logger().info(f"Locking {cube_name} in gripper...")
+        self.get_logger().info(f"Attaching {cube_name} to gripper...")
 
     def detach_cube(self, color: str):
-        """Release cube: remove fixed joint so cube drops when gripper opens."""
+        """Detach cube from gripper using IFRA LinkAttacher."""
         cube_name = self._CUBE_NAMES.get(color)
         if not cube_name:
             return
         if not self._detach_cli.service_is_ready():
-            self.get_logger().warn("Detach service not ready! Waiting...")
+            self.get_logger().warn("DETACHLINK service not ready! Waiting...")
             self._detach_cli.wait_for_service(timeout_sec=5.0)
-        req = Detach.Request()
-        req.joint_name = f'{cube_name}_grasp'
-        req.model_name_1 = 'turtlebot3_manipulation_system'
-        req.model_name_2 = cube_name
+        req = DetachLink.Request()
+        req.model1_name = 'turtlebot3_manipulation_system'
+        req.link1_name = 'gripper_left_link'
+        req.model2_name = cube_name
+        req.link2_name = 'link'
         future = self._detach_cli.call_async(req)
         future.add_done_callback(
             lambda f: self._log_attach_result(f, f"Detach {cube_name}"))
-        self.get_logger().info(f"Releasing {cube_name}...")
+        self.get_logger().info(f"Detaching {cube_name}...")
 
     def _log_attach_result(self, future, label: str):
         try:
             result = future.result()
-            if result.success:
-                self.get_logger().info(f"{label}: SUCCESS")
-            else:
-                self.get_logger().error(f"{label}: FAILED - {result.message}")
+            self.get_logger().info(f"LinkAttacher result: {result}")
         except Exception as e:
-            self.get_logger().error(f"{label}: Exception - {e}")
+            self.get_logger().error(f"LinkAttacher exception: {e}")
 
     def carry_cube(self, color: str):
         """No-op: cube is physically attached via fixed joint."""

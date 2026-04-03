@@ -621,14 +621,25 @@ class StateMachine:
 
             if front_d <= pick_dist:
                 self.motion.stop()
-                self._log(f"[{lbl}] At pick distance ({front_d:.2f}m) -- picking!")
+                # Re-center check: verify cube is centered before picking
+                target = self._find_and_label(task.cube_cls)
+                if target is not None:
+                    pixel_err = (target[0] - 0.5) * 640
+                    if abs(pixel_err) > ALIGN_CENTER_PX:
+                        # Cube drifted — rotate to re-center
+                        norm_err = (target[0] - 0.5) / 0.5
+                        ang = max(-0.15, min(0.15, -0.3 * norm_err))
+                        self.motion.publish(lx=0.0, az=ang)
+                        self.status_text = f"[{lbl}] Re-centering at pick dist err={pixel_err:+.0f}px"
+                        return
+                self._log(f"[{lbl}] At pick distance ({front_d:.2f}m) centered -- picking!")
                 self._align_phase = 0
                 self.state = ST_PICK_OBJECT
                 self._pick_phase = 0
                 self._pick_timer = time.time()
                 return
 
-            # Creep forward slowly with heading-hold + gentle YOLO tracking
+            # Creep forward slowly with heading-hold + stronger YOLO tracking
             _, _, cur_yaw = self._get_odom()
             yaw_err = self._perp_yaw - cur_yaw
             while yaw_err > math.pi:  yaw_err -= 2 * math.pi
@@ -637,7 +648,7 @@ class StateMachine:
 
             target = self._find_and_label(task.cube_cls)
             if target is not None:
-                trim = max(-0.02, min(0.02, -0.05 * (target[0] - 0.5)))
+                trim = max(-0.04, min(0.04, -0.10 * (target[0] - 0.5)))
                 ang = max(-APPROACH_MILD_MAX, min(APPROACH_MILD_MAX, ang + trim))
 
             self.motion.publish(lx=0.02, az=ang)
@@ -649,47 +660,47 @@ class StateMachine:
         t = time.time() - self._pick_timer
         p = self._pick_phase
 
-        # Smooth grasp: slow gentle close, then firm grip + attach, then lift
+        # Grip: close visually + IFRA attach for reliable hold
         if p == 0:
             self.motion.stop()
             self.arm.open_gripper()
             self._pick_phase = 1; self._pick_timer = time.time()
             self.status_text = f"[{lbl}] Opening gripper..."
-        elif p == 1 and t > 2.0:
-            self.arm.ready(3.0)
+        elif p == 1 and t > 1.5:
+            self.arm.pre_pick(3.0, color=lbl)
             self._pick_phase = 2; self._pick_timer = time.time()
-            self.status_text = f"[{lbl}] Arm ready..."
-        elif p == 2 and t > 4.0:
-            self.arm.pick(4.0, color=lbl)
+            self.status_text = f"[{lbl}] Arm above cube..."
+        elif p == 2 and t > 3.5:
+            self.arm.pick(3.0, color=lbl)
             self._pick_phase = 3; self._pick_timer = time.time()
-            self.status_text = f"[{lbl}] Reaching for cube..."
-        elif p == 3 and t > 5.0:
-            # Slow gentle close (low effort = slow motor movement)
-            self.arm.close_gripper_slow()
+            self.status_text = f"[{lbl}] Descending to cube..."
+        elif p == 3 and t > 4.0:
+            # Close gripper visually
+            self.arm.close_gripper()
             self._pick_phase = 4; self._pick_timer = time.time()
-            self.status_text = f"[{lbl}] Slowly closing gripper..."
-            self._log(f"[{lbl}] Gentle gripper close...")
-        elif p == 4 and t > 4.0:
-            # Firm grip (full effort to squeeze tight)
-            self.arm.close_gripper_firm()
-            self._pick_phase = 5; self._pick_timer = time.time()
-            self.status_text = f"[{lbl}] Grip tight!"
-        elif p == 5 and t > 2.0:
-            # Lock grip with attachment (cube is centered by physics)
+            self.status_text = f"[{lbl}] Gripping cube..."
+            self._log(f"[{lbl}] Gripper closing...")
+        elif p == 4 and t > 2.0:
+            # IFRA attach to lock cube
             if self._robot:
                 self._robot.attach_cube(lbl)
-            self._pick_phase = 6; self._pick_timer = time.time()
-            self.status_text = f"[{lbl}] Grip locked!"
-            self._log(f"[{lbl}] Cube secured in gripper!")
-        elif p == 6 and t > 1.5:
+            self._pick_phase = 5; self._pick_timer = time.time()
+            self.status_text = f"[{lbl}] Cube locked!"
+            self._log(f"[{lbl}] IFRA attach — cube secured!")
+        elif p == 5 and t > 1.5:
             self.arm.lift(4.0, color=lbl)
-            self._pick_phase = 7; self._pick_timer = time.time()
+            self._pick_phase = 6; self._pick_timer = time.time()
             self.status_text = f"[{lbl}] Lifting..."
-        elif p == 7 and t > 5.0:
+        elif p == 6 and t > 5.0:
             self.arm.carry(3.0)
-            self._pick_phase = 8; self._pick_timer = time.time()
+            self._pick_phase = 7; self._pick_timer = time.time()
             self.status_text = f"[{lbl}] Carrying..."
-        elif p == 8 and t > 4.0:
+            self.status_text = f"[{lbl}] Lifting..."
+        elif p == 6 and t > 5.0:
+            self.arm.carry(3.0)
+            self._pick_phase = 7; self._pick_timer = time.time()
+            self.status_text = f"[{lbl}] Carrying..."
+        elif p == 7 and t > 4.0:
             self.status_text = f"[{lbl}] Grab complete -- backing up..."
             self._log(self.status_text)
             self.state = ST_BACKUP_PICK
@@ -818,7 +829,7 @@ class StateMachine:
             self._drop_phase = 2; self._drop_timer = time.time()
             self.status_text = f"[{lbl}] Positioning over basket center..."
         elif p == 2 and t > 4.0:
-            # Detach cube + open gripper to release
+            # IFRA detach + open gripper
             if self._robot:
                 self._robot.detach_cube(lbl)
             self.arm.open_gripper()

@@ -88,11 +88,15 @@ class ArmController:
         self.gripper(GRIPPER_CLOSE)
 
     def close_gripper_slow(self):
-        """Close gripper with low effort for slow, gentle closing."""
-        self.gripper(GRIPPER_CLOSE, effort=5.0)
+        """Close gripper to grasp position."""
+        self.gripper(GRIPPER_CLOSE, effort=GRIPPER_EFFORT)
+
+    def close_gripper_medium(self):
+        """Same close."""
+        self.gripper(GRIPPER_CLOSE, effort=GRIPPER_EFFORT)
 
     def close_gripper_firm(self):
-        """Firm grip after slow close — full effort to hold tight."""
+        """Same close."""
         self.gripper(GRIPPER_CLOSE, effort=GRIPPER_EFFORT)
 
     def gripper_to(self, position: float, effort: float = GRIPPER_EFFORT):

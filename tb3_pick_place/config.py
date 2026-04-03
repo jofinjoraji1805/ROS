@@ -98,7 +98,7 @@ FACE_YAW_TOLERANCE = 0.03    # rad (~1.7 deg)
 SCAN_ANG_VEL = 0.15
 
 # ── Alignment ─────────────────────────────────────────────────────────
-ALIGN_CENTER_PX = 20
+ALIGN_CENTER_PX = 10
 ALIGN_KP = 1.0
 ALIGN_LOST_MAX = 100
 MAX_ANG_VEL = 0.25
@@ -138,16 +138,16 @@ RETURN_HOME_THRESH = 0.20
 ARM_HOME = [0.0, -1.0, 0.3, 0.7]
 # READY: arm raised, preparing to extend toward cube
 ARM_READY = [0.0, -0.6, 0.3, 0.3]
-# PRE_PICK: arm extended forward, gripper ABOVE the cube
-ARM_PRE_PICK = [0.0, 0.30, 0.50, -0.80]
-# PICK: gripper lowered to cube height on table
-ARM_PICK = [0.0, 0.50, 0.50, -1.00]
+# PRE_PICK: arm extended forward, gripper clearly ABOVE the cube
+ARM_PRE_PICK = [0.0, 0.20, 0.50, -0.70]
+# PICK: fingertips at cube mid-height (wider 30mm cube)
+ARM_PICK = [0.0, 0.39, 0.50, -0.89]
 # LIFT: raise cube off table
 ARM_LIFT = [0.0, -0.1, 0.55, -0.45]
 
 # RED cube: same as default
-ARM_PRE_PICK_RED = [0.0, 0.30, 0.50, -0.80]
-ARM_PICK_RED = [0.0, 0.50, 0.50, -1.00]
+ARM_PRE_PICK_RED = [0.0, 0.20, 0.50, -0.70]
+ARM_PICK_RED = [0.0, 0.39, 0.50, -0.89]
 ARM_LIFT_RED = [0.0, -0.1, 0.55, -0.45]
 # CARRY: compact carry position, cube held close to body
 ARM_CARRY = [0.0, -0.8, 0.2, 0.6]
@@ -157,9 +157,9 @@ ARM_DROP_OVER = [0.0, 0.25, 0.05, -0.30]       # shoulder tilts down, gripper dr
 ARM_DROP_RETREAT = [0.0, -0.50, 0.30, 0.20]    # pull arm back after release
 
 # ── Gripper ──────────────────────────────────────────────────────────
-GRIPPER_OPEN = 0.019
-GRIPPER_CLOSE = -0.015            # close past cube so controller keeps squeezing
-GRIPPER_EFFORT = 200.0            # max effort for physical grip with friction
+GRIPPER_OPEN = 0.01
+GRIPPER_CLOSE = -0.015            # maximum close — squeeze to cube width
+GRIPPER_EFFORT = 200.0            # max effort to squeeze and hold
 
 # ── Manual teleop ────────────────────────────────────────────────────
 TELEOP_LINEAR = 0.10
