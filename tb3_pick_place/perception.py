@@ -54,10 +54,12 @@ class PerceptionModule:
         self.CLS_BLUE_ZONE = _n2i["blue_drop_zone"]
         self.CLS_GREEN_CUBE = _n2i["green_cube"]
         self.CLS_GREEN_ZONE = _n2i["green_drop_zone"]
+        self.CLS_DOCK = _n2i.get("charging_dock", -1)
         self.CUBE_IDS = {self.CLS_RED_CUBE, self.CLS_BLUE_CUBE, self.CLS_GREEN_CUBE}
 
         # Drawing colours (BGR)
-        _cm = {"red": (0, 0, 255), "green": (0, 200, 0), "blue": (255, 100, 0)}
+        _cm = {"red": (0, 0, 255), "green": (0, 200, 0), "blue": (255, 100, 0),
+               "charging": (0, 165, 255)}
         self.draw_colors: Dict[int, Tuple[int, ...]] = {}
         for cid, name in self.names.items():
             for key, bgr in _cm.items():
@@ -95,6 +97,7 @@ class PerceptionModule:
         """
         img_area = img_w * img_h
         is_cube = target_cls in self.CUBE_IDS
+        is_dock = target_cls == self.CLS_DOCK
         best: Optional[Detection] = None
         best_conf = 0.0
 
@@ -102,10 +105,11 @@ class PerceptionModule:
             if d.cls_id != target_cls or d.conf <= best_conf:
                 continue
             area = ((d.x2 - d.x1) * (d.y2 - d.y1)) / img_area
-            if is_cube and area > 0.15:
-                continue
-            if not is_cube and area < 0.001:
-                continue
+            if not is_dock:
+                if is_cube and area > 0.15:
+                    continue
+                if not is_cube and area < 0.001:
+                    continue
             best = d
             best_conf = d.conf
 
@@ -153,6 +157,31 @@ class PerceptionModule:
                           (int(d.x1) + tw, int(d.y1)), c, -1)
             cv2.putText(vis, lbl, (int(d.x1), int(d.y1) - 4),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        if hud:
+            cv2.putText(vis, hud, (10, 25),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+        return vis
+
+    def annotate_dock(
+        self,
+        frame: np.ndarray,
+        dets: List[Detection],
+        hud: str = "",
+    ) -> np.ndarray:
+        """Replace all detections with a single 'charging_dock' label."""
+        vis = frame.copy()
+        # Use bounding box of the largest detection as the dock region
+        best = max(dets, key=lambda d: (d.x2 - d.x1) * (d.y2 - d.y1))
+        c = (0, 200, 0)  # green
+        cv2.rectangle(vis, (int(best.x1), int(best.y1)),
+                      (int(best.x2), int(best.y2)), c, 2)
+        lbl = "charging_dock"
+        (tw, th), _ = cv2.getTextSize(
+            lbl, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+        cv2.rectangle(vis, (int(best.x1), int(best.y1) - th - 6),
+                      (int(best.x1) + tw, int(best.y1)), c, -1)
+        cv2.putText(vis, lbl, (int(best.x1), int(best.y1) - 4),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
         if hud:
             cv2.putText(vis, hud, (10, 25),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)

@@ -22,7 +22,9 @@ from .config import (
     ST_APPROACH_OBJECT, ST_ADJUST_POSITION, ST_ALIGN_TABLE, ST_PICK_OBJECT,
     ST_BACKUP_PICK, ST_NAV_TO_ZONE, ST_DRIVE_TO_ZONE, ST_SEARCH_DROP_ZONE,
     ST_APPROACH_DROP, ST_ADJUST_DROP, ST_PLACE_OBJECT,
-    ST_BACKUP_DROP, ST_NEXT_OBJECT, ST_RETURN_HOME, ST_DONE,
+    ST_BACKUP_DROP, ST_NEXT_OBJECT, ST_RETURN_HOME,
+    ST_SEARCH_DOCK, ST_ALIGN_DOCK, ST_APPROACH_DOCK,
+    ST_DOCK_CREEP, ST_PARKED, ST_DONE,
     SCAN_ANG_VEL, ALIGN_CENTER_PX, ALIGN_KP, ALIGN_LOST_MAX,
     MAX_ANG_VEL, APPROACH_FWD, APPROACH_DRIFT_PX,
     APPROACH_MILD_KP, APPROACH_MILD_MAX, APPROACH_TIMEOUT,
@@ -35,6 +37,9 @@ from .config import (
     CUBE_FACE_YAW, ZONE_FACE_YAW, FACE_YAW_TOLERANCE,
     ALIGN_TABLE_KP, ALIGN_TABLE_SLOPE_THRESH, ALIGN_TABLE_TIMEOUT,
     CUBE_TABLE_Y,
+    DOCK_POSITION, DOCK_FACE_YAW,
+    DOCK_APPROACH_VEL, DOCK_STOP_DISTANCE, DOCK_CREEP_VEL, DOCK_CREEP_TIME,
+    DOCK_ALIGN_CENTER_PX, DOCK_APPROACH_TIMEOUT,
 )
 from .perception import PerceptionModule, TaskDef
 from .motion import MotionController
@@ -195,22 +200,40 @@ class StateMachine:
     # ── Main tick ────────────────────────────────────────────────────
 
     def tick(self):
-        if not self.running or self.state in (ST_DONE, ST_IDLE):
+        if not self.running or self.state in (ST_DONE, ST_PARKED, ST_IDLE):
             return
 
-        if self.task_idx >= len(self.tasks) and self.state != ST_RETURN_HOME:
+        _dock_states = (ST_RETURN_HOME, ST_SEARCH_DOCK, ST_ALIGN_DOCK,
+                        ST_APPROACH_DOCK, ST_DOCK_CREEP)
+        if self.task_idx >= len(self.tasks) and self.state not in _dock_states:
             self.motion.stop()
             self.arm.home()
             self.state = ST_RETURN_HOME
             self.status_text = "All cubes delivered -- returning home..."
             self._log(self.status_text)
-            # Navigate home
+            # Navigate to dock search area
             if self.navigator.map_loaded:
-                self.navigator.navigate_to(self._home_x, self._home_y)
+                self.navigator.navigate_to(DOCK_POSITION[0], DOCK_POSITION[1])
             return
 
         if self.state == ST_RETURN_HOME:
             self._run_return_home()
+            return
+
+        if self.state == ST_SEARCH_DOCK:
+            self._search_dock()
+            return
+
+        if self.state == ST_ALIGN_DOCK:
+            self._align_dock()
+            return
+
+        if self.state == ST_APPROACH_DOCK:
+            self._approach_dock()
+            return
+
+        if self.state == ST_DOCK_CREEP:
+            self._dock_creep()
             return
 
         task = self.tasks[self.task_idx]
@@ -871,44 +894,27 @@ class StateMachine:
     # ── Return home ──────────────────────────────────────────────────
 
     def _run_return_home(self):
-        # Use navigator if active
+        # Navigate to dock search area, then start YOLO dock search
         if self.navigator.is_active():
             self.navigator.tick()
             self.status_text = f"Returning: {self.navigator.status_text}"
             if self.navigator.is_done():
-                self.motion.stop()
-                self.arm.home()
-                self.state = ST_DONE
-                self.running = False
-                self.status_text = "HOME -- ALL TASKS COMPLETE!"
-                self._log(self.status_text)
+                self._start_dock_search()
             elif self.navigator.has_failed():
-                # Fallback: simple drive home
-                self._simple_drive_home()
+                self._simple_drive_to_dock_area()
             return
 
-        self._simple_drive_home()
+        self._simple_drive_to_dock_area()
 
-    def _simple_drive_home(self):
+    def _simple_drive_to_dock_area(self):
         x, y, yaw = self._get_odom()
-        dx = self._home_x - x
-        dy = self._home_y - y
+        dx = DOCK_POSITION[0] - x
+        dy = DOCK_POSITION[1] - y
         dist = math.sqrt(dx * dx + dy * dy)
 
         if dist < RETURN_HOME_THRESH:
-            yaw_err = self._home_yaw - yaw
-            while yaw_err > math.pi:  yaw_err -= 2 * math.pi
-            while yaw_err < -math.pi: yaw_err += 2 * math.pi
-            if abs(yaw_err) > 0.10:
-                self.motion.publish(
-                    az=max(-MAX_ANG_VEL, min(MAX_ANG_VEL, 0.3 * yaw_err)))
-            else:
-                self.motion.stop()
-                self.arm.home()
-                self.state = ST_DONE
-                self.running = False
-                self.status_text = "HOME -- ALL TASKS COMPLETE!"
-                self._log(self.status_text)
+            self.motion.stop()
+            self._start_dock_search()
             return
 
         target_yaw = math.atan2(dy, dx)
@@ -920,7 +926,158 @@ class StateMachine:
             self.motion.publish(
                 az=max(-MAX_ANG_VEL, min(MAX_ANG_VEL, 0.3 * yaw_err)))
         else:
-            fwd = self._safe_fwd(min(APPROACH_FWD, 0.5 * dist))
+            fwd = min(APPROACH_FWD, 0.5 * dist)
             ang = max(-MAX_ANG_VEL, min(MAX_ANG_VEL, 0.3 * yaw_err))
             self.motion.publish(lx=fwd, az=ang)
-        self.status_text = f"Returning home -- {dist:.2f}m"
+        self.status_text = f"Driving to dock area -- {dist:.2f}m"
+
+    # ── Charging dock (YOLO visual servo) ──────────────────────────
+
+    def _start_dock_search(self):
+        """Face the dock direction and begin YOLO search."""
+        self.motion.stop()
+        self.arm.home()
+        self.state = ST_SEARCH_DOCK
+        self._lost_count = 0
+        self._dock_facing = False
+        self.status_text = "Searching for charging dock..."
+        self._log(self.status_text)
+
+    def _search_dock(self):
+        """Rotate to find charging_dock via YOLO, first face south."""
+        # First turn to face the dock direction
+        if not self._dock_facing:
+            x, y, yaw = self._get_odom()
+            yaw_err = DOCK_FACE_YAW - yaw
+            while yaw_err > math.pi:  yaw_err -= 2 * math.pi
+            while yaw_err < -math.pi: yaw_err += 2 * math.pi
+            if abs(yaw_err) > 0.08:
+                self.motion.publish(
+                    az=max(-MAX_ANG_VEL, min(MAX_ANG_VEL, 0.4 * yaw_err)))
+                self.status_text = f"Facing dock area... {math.degrees(yaw_err):.0f}deg"
+                return
+            self.motion.stop()
+            self._dock_facing = True
+
+        # Search for dock via YOLO
+        dock_cls = self.perception.CLS_DOCK
+        target = self._find_target(dock_cls)
+        if target:
+            self.motion.stop()
+            self.state = ST_ALIGN_DOCK
+            self._lost_count = 0
+            self._max_area = 0.0
+            self._last_align_ang = 0.0
+            self.status_text = "Charging dock detected! Aligning..."
+            self._log(self.status_text)
+        else:
+            # Slow scan to find it
+            self.motion.publish(az=SCAN_ANG_VEL)
+            self.status_text = "Scanning for charging dock..."
+
+    def _align_dock(self):
+        """Center the charging dock in the camera frame."""
+        dock_cls = self.perception.CLS_DOCK
+        target = self._find_target(dock_cls)
+
+        if target is None:
+            self._lost_count += 1
+            if self._lost_count > ALIGN_LOST_MAX:
+                self.state = ST_SEARCH_DOCK
+                self._lost_count = 0
+                self._dock_facing = True  # already roughly facing
+            else:
+                if self._last_align_ang != 0.0:
+                    drift = 0.03 * (1 if self._last_align_ang > 0 else -1)
+                    self.motion.publish(az=drift)
+                else:
+                    self.motion.stop()
+            self.status_text = f"Dock lost ({self._lost_count})"
+            return
+
+        self._lost_count = 0
+        cx, cy, area = target
+        self._max_area = max(self._max_area, area)
+        err = cx - 0.5
+        pixel_err = err * 640
+
+        if abs(pixel_err) <= DOCK_ALIGN_CENTER_PX:
+            self.motion.stop()
+            self.state = ST_APPROACH_DOCK
+            self._phase_start = time.time()
+            self._lost_count = 0
+            self._last_align_ang = 0.0
+            self.status_text = "Dock centered! Approaching..."
+            self._log(self.status_text)
+        else:
+            ang = max(-MAX_ANG_VEL, min(MAX_ANG_VEL, -ALIGN_KP * err))
+            if 0 < abs(ang) < 0.05:
+                ang = 0.05 * (1 if ang > 0 else -1)
+            self._last_align_ang = ang
+            self.motion.publish(az=ang)
+            self.status_text = f"Aligning dock err={pixel_err:+.0f}px"
+
+    def _approach_dock(self):
+        """Drive toward dock using YOLO visual servo, stop when LIDAR close."""
+        elapsed = time.time() - self._phase_start
+        front_d = self.lidar.get_front_distance()
+
+        # Close enough — start final creep
+        if front_d < DOCK_STOP_DISTANCE:
+            self.motion.stop()
+            self.state = ST_DOCK_CREEP
+            self._dock_creep_start = time.time()
+            self.status_text = "At dock — creeping into position..."
+            self._log(self.status_text)
+            return
+
+        if elapsed > DOCK_APPROACH_TIMEOUT:
+            # Timeout — just creep from here
+            self.motion.stop()
+            self.state = ST_DOCK_CREEP
+            self._dock_creep_start = time.time()
+            self.status_text = "Approach timeout — creeping into dock..."
+            self._log(self.status_text)
+            return
+
+        # Visual servo: keep dock centered while driving forward
+        dock_cls = self.perception.CLS_DOCK
+        target = self._find_target(dock_cls)
+
+        if target is not None:
+            self._lost_count = 0
+            cx = target[0]
+            pixel_err = (cx - 0.5) * 640
+            if abs(pixel_err) > DOCK_ALIGN_CENTER_PX * 3:
+                ang = max(-MAX_ANG_VEL, min(MAX_ANG_VEL, -ALIGN_KP * (cx - 0.5)))
+                self.motion.publish(lx=0.0, az=ang)
+            else:
+                ang = max(-0.10, min(0.10, -0.3 * (cx - 0.5)))
+                self.motion.publish(lx=DOCK_APPROACH_VEL, az=ang)
+            self.status_text = f"Approaching dock LIDAR:{front_d:.2f}m"
+        else:
+            self._lost_count += 1
+            if self._lost_count > 60:
+                # Lost dock too long — re-search
+                self.motion.stop()
+                self.state = ST_SEARCH_DOCK
+                self._dock_facing = True
+                self._lost_count = 0
+            else:
+                # Drive forward slowly, hope to reacquire
+                self.motion.publish(lx=DOCK_APPROACH_VEL * 0.5)
+            self.status_text = f"Dock lost, driving... ({self._lost_count})"
+
+    def _dock_creep(self):
+        """Slow forward creep into the dock."""
+        elapsed = time.time() - self._dock_creep_start
+        if elapsed < DOCK_CREEP_TIME:
+            self.motion.publish(lx=DOCK_CREEP_VEL)
+            self.status_text = f"Docking... {DOCK_CREEP_TIME - elapsed:.1f}s"
+        else:
+            self.motion.stop()
+            self.arm.home()
+            self.state = ST_PARKED
+            self.running = False
+            self.status_text = "Robot parked at charging dock -- Charging -- Mission Complete!"
+            self._log(self.status_text)

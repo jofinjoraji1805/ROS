@@ -341,9 +341,18 @@ class Navigator:
 
     # ── Visualization ────────────────────────────────────────────────
 
+    # Known landmarks for map overlay (world coords)
+    _TABLES = [(-1.0, -1.5), (-1.0, 0.0), (-1.0, 1.5)]
+    _DROP_ZONES = [(2.0, 1.5), (2.0, 0.0), (2.0, -1.5)]
+    _DROP_COLORS = [(0, 0, 200), (0, 180, 0), (200, 100, 0)]  # BGR: R, G, B
+    _TABLE_COLORS = [(0, 0, 150), (0, 140, 0), (150, 80, 0)]
+    _DOCK = (0.5, -3.1)
+    _TABLE_LABELS = ["R", "B", "G"]  # RED at y=-1.5, BLUE at y=0, GREEN at y=1.5
+    _DROP_LABELS = ["R", "G", "B"]   # RED at y=1.5, GREEN at y=0, BLUE at y=-1.5
+
     def get_nav_map_image(self, odom_x: float, odom_y: float,
                           odom_yaw: float) -> Optional[np.ndarray]:
-        """Return map image with path and robot overlaid."""
+        """Return map image with path, landmarks, and robot overlaid."""
         if self.map_grid is None:
             return None
 
@@ -354,6 +363,37 @@ class Navigator:
         if self.costmap is not None:
             inflate_only = (self.costmap > 0) & (self.map_grid >= 50)
             img[inflate_only] = (40, 40, 120)
+
+        # Draw known landmarks: tables (squares) and drop zones (diamonds)
+        for i, (tx, ty) in enumerate(self._TABLES):
+            gp = self._world_to_grid(tx, ty)
+            sz = 8
+            cv2.rectangle(img, (gp[0]-sz, gp[1]-sz), (gp[0]+sz, gp[1]+sz),
+                          self._TABLE_COLORS[i], 2)
+            cv2.putText(img, self._TABLE_LABELS[i],
+                        (gp[0]-4, gp[1]+4),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.35,
+                        self._TABLE_COLORS[i], 1)
+
+        for i, (dx, dy) in enumerate(self._DROP_ZONES):
+            gp = self._world_to_grid(dx, dy)
+            sz = 8
+            pts = np.array([
+                [gp[0], gp[1]-sz], [gp[0]+sz, gp[1]],
+                [gp[0], gp[1]+sz], [gp[0]-sz, gp[1]]
+            ], dtype=np.int32)
+            cv2.polylines(img, [pts], True, self._DROP_COLORS[i], 2)
+            cv2.putText(img, self._DROP_LABELS[i],
+                        (gp[0]-4, gp[1]+4),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.35,
+                        self._DROP_COLORS[i], 1)
+
+        # Draw charging dock
+        dp = self._world_to_grid(self._DOCK[0], self._DOCK[1])
+        cv2.rectangle(img, (dp[0]-6, dp[1]-4), (dp[0]+6, dp[1]+4),
+                      (0, 200, 200), 2)
+        cv2.putText(img, "D", (dp[0]-4, dp[1]+3),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 200, 200), 1)
 
         # Draw planned path in cyan
         if self.path:

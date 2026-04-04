@@ -36,6 +36,7 @@ from .config import (
     CAMERA_TOPIC, ODOM_TOPIC, CMD_VEL_TOPIC, SCAN_TOPIC,
     ARM_TRAJECTORY_TOPIC, GRIPPER_ACTION,
     TELEOP_LINEAR, TELEOP_ANGULAR,
+    ST_SEARCH_DOCK, ST_ALIGN_DOCK, ST_APPROACH_DOCK, ST_DOCK_CREEP, ST_PARKED,
 )
 from .perception import PerceptionModule, Detection
 from .motion import MotionController
@@ -206,9 +207,18 @@ class RobotController(Node):
 
         idx = self.fsm.task_idx
         tasks = self.fsm.tasks
-        lbl = tasks[idx].label if idx < len(tasks) else "DONE"
+        _dock_states = (ST_SEARCH_DOCK, ST_ALIGN_DOCK, ST_APPROACH_DOCK, ST_DOCK_CREEP, ST_PARKED)
+        if idx < len(tasks):
+            lbl = tasks[idx].label
+        elif self.fsm.state in (ST_SEARCH_DOCK, ST_ALIGN_DOCK, ST_APPROACH_DOCK, ST_DOCK_CREEP):
+            lbl = "DOCKING"
+        elif self.fsm.state == ST_PARKED:
+            lbl = "PARKED"
+        else:
+            lbl = "DONE"
         front_d = self.lidar.get_front_distance()
         hud = f"[{lbl}] {self.fsm.state}  LIDAR:{front_d:.2f}m"
+
         vis = self.perception.annotate(frame, dets, hud)
 
         with self.lock:

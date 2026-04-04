@@ -133,6 +133,16 @@ ZONE_ADJUST_TIME = 10.0
 # ── Return home ──────────────────────────────────────────────────────
 RETURN_HOME_THRESH = 0.20
 
+# ── Charging dock ────────────────────────────────────────────────────
+DOCK_POSITION = (0.5, -2.3)          # (x, y) — waypoint to start dock search
+DOCK_FACE_YAW = -1.5708              # face -Y (toward dock) to start search
+DOCK_APPROACH_VEL = 0.06             # forward vel during visual servo approach
+DOCK_STOP_DISTANCE = 0.30            # LIDAR distance to stop approach and creep
+DOCK_CREEP_VEL = 0.04                # slow final creep into dock
+DOCK_CREEP_TIME = 4.0                # seconds to creep into final park position
+DOCK_ALIGN_CENTER_PX = 15            # centering tolerance (pixels)
+DOCK_APPROACH_TIMEOUT = 30.0         # max seconds for approach
+
 # ── Arm joint poses [joint1, joint2, joint3, joint4] ─────────────────
 # HOME: arm folded back compactly, out of camera view
 ARM_HOME = [0.0, -1.0, 0.3, 0.7]
@@ -185,6 +195,11 @@ ST_PLACE_OBJECT = "PLACE_OBJECT"
 ST_BACKUP_DROP = "BACKUP_DROP"
 ST_NEXT_OBJECT = "NEXT_OBJECT"
 ST_RETURN_HOME = "RETURN_HOME"
+ST_SEARCH_DOCK = "SEARCH_DOCK"
+ST_ALIGN_DOCK = "ALIGN_DOCK"
+ST_APPROACH_DOCK = "APPROACH_DOCK"
+ST_DOCK_CREEP = "DOCK_CREEP"
+ST_PARKED = "PARKED"
 ST_DONE = "DONE"
 
 # ── Table alignment (LiDAR parallel) ─────────────────────────────────

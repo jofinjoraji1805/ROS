@@ -30,6 +30,7 @@ setup(
     tests_require=['pytest'],
     scripts=[
         'scripts/autonomous_pick_place.py',
+        'capture_dock_data.py',
     ],
     entry_points={
         'console_scripts': [
