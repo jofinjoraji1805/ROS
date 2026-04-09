@@ -24,7 +24,7 @@ from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
 from trajectory_msgs.msg import JointTrajectory
 from control_msgs.action import GripperCommand as GripperCommandAction
-from gazebo_msgs.srv import SetEntityState
+from gazebo_msgs.srv import SetEntityState, DeleteEntity, SpawnEntity
 from gazebo_msgs.msg import EntityState
 from linkattacher_msgs.srv import AttachLink, DetachLink
 from gazebo_msgs.msg import ContactsState
@@ -91,6 +91,12 @@ class RobotController(Node):
         # ── Gazebo entity state (for cube teleport/drop) ─────────────
         self._set_entity_cli = self.create_client(
             SetEntityState, '/gazebo/set_entity_state')
+
+        # ── Gazebo delete/spawn (for dock LED color change) ──────────
+        self._delete_entity_cli = self.create_client(
+            DeleteEntity, '/delete_entity')
+        self._spawn_entity_cli = self.create_client(
+            SpawnEntity, '/spawn_entity')
 
         # ── IFRA Link Attacher (for pick-and-place grasp) ────────────
         self._attach_cli = self.create_client(AttachLink, '/ATTACHLINK')
@@ -343,6 +349,97 @@ class RobotController(Node):
         req.state = state
         self._set_entity_cli.call_async(req)
         self.get_logger().info(f"Dropped {cube_name} at ({x:.2f}, {y:.2f})")
+
+    # ── Dock LED color change ──────────────────────────────────────
+
+    _DOCK_SDF_TEMPLATE = """\
+<sdf version='1.6'>
+  <model name='charging_dock'>
+    <static>1</static>
+    <pose>0.5 -3.1 0.0 0 0 0</pose>
+    <link name='dock_link'>
+      <visual name='platform_v'>
+        <pose>0 0 0.001 0 0 0</pose>
+        <geometry><box><size>0.45 0.40 0.002</size></box></geometry>
+        <material>
+          <ambient>0.15 0.15 0.15 1</ambient>
+          <diffuse>0.2 0.2 0.2 1</diffuse>
+        </material>
+      </visual>
+      <visual name='charger_wall_v'>
+        <pose>0 -0.18 0.175 0 0 0</pose>
+        <geometry><box><size>0.35 0.04 0.35</size></box></geometry>
+        <material>
+          <ambient>0.1 0.1 0.1 1</ambient>
+          <diffuse>0.15 0.15 0.15 1</diffuse>
+        </material>
+      </visual>
+      <collision name='charger_wall_c'>
+        <pose>0 -0.18 0.175 0 0 0</pose>
+        <geometry><box><size>0.35 0.04 0.35</size></box></geometry>
+      </collision>
+      <visual name='led_v'>
+        <pose>0 -0.165 0.30 0 0 0</pose>
+        <geometry><cylinder><radius>0.015</radius><length>0.01</length></cylinder></geometry>
+        <material>
+          <ambient>{r} {g} {b} 1</ambient>
+          <diffuse>{r} {g} {b} 1</diffuse>
+          <emissive>{er} {eg} {eb} 1</emissive>
+        </material>
+      </visual>
+      <visual name='contact_pad_v'>
+        <pose>0 -0.16 0.06 0 0 0</pose>
+        <geometry><box><size>0.20 0.02 0.06</size></box></geometry>
+        <material>
+          <ambient>1.0 0.5 0.0 1</ambient>
+          <diffuse>1.0 0.5 0.0 1</diffuse>
+          <emissive>0.5 0.25 0.0 1</emissive>
+        </material>
+      </visual>
+      <visual name='rail_left_v'>
+        <pose>0.19 -0.05 0.003 0 0 0</pose>
+        <geometry><box><size>0.02 0.30 0.006</size></box></geometry>
+        <material>
+          <ambient>0.3 0.3 0.0 1</ambient>
+          <diffuse>0.5 0.5 0.0 1</diffuse>
+        </material>
+      </visual>
+      <visual name='rail_right_v'>
+        <pose>-0.19 -0.05 0.003 0 0 0</pose>
+        <geometry><box><size>0.02 0.30 0.006</size></box></geometry>
+        <material>
+          <ambient>0.3 0.3 0.0 1</ambient>
+          <diffuse>0.5 0.5 0.0 1</diffuse>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>"""
+
+    def set_dock_led_color(self, r: float, g: float, b: float):
+        """Delete charging_dock and respawn it with a new LED color."""
+        # Delete existing dock
+        del_req = DeleteEntity.Request()
+        del_req.name = 'charging_dock'
+        del_future = self._delete_entity_cli.call_async(del_req)
+        del_future.add_done_callback(
+            lambda f: self._respawn_dock(r, g, b))
+
+    def _respawn_dock(self, r: float, g: float, b: float):
+        """Callback: respawn dock with new LED color after delete completes."""
+        sdf = self._DOCK_SDF_TEMPLATE.format(
+            r=r, g=g, b=b,
+            er=r * 0.8, eg=g * 0.8, eb=b * 0.8,
+        )
+        spawn_req = SpawnEntity.Request()
+        spawn_req.name = 'charging_dock'
+        spawn_req.xml = sdf
+        spawn_req.initial_pose.position.x = 0.5
+        spawn_req.initial_pose.position.y = -3.1
+        spawn_req.initial_pose.position.z = 0.0
+        self._spawn_entity_cli.call_async(spawn_req)
+        self.get_logger().info(
+            f"Dock LED changed to ({r}, {g}, {b})")
 
     # ── Timer ────────────────────────────────────────────────────────
 

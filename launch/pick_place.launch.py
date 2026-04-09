@@ -59,7 +59,7 @@ def generate_launch_description():
         arguments=[
             '-topic', 'robot_description',
             '-entity', 'turtlebot3_manipulation_system',
-            '-x', '0.5', '-y', '-2.0', '-z', '0.01',
+            '-x', '0.5', '-y', '-3.0', '-z', '0.01',
             '-R', '0.00', '-P', '0.00', '-Y', '1.5708'],
         output='screen')
 

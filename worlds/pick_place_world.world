@@ -855,27 +855,27 @@
             <diffuse>0.2 0.2 0.2 1</diffuse>
           </material>
         </visual>
-        <!-- Back wall (charger unit) -->
+        <!-- Back wall (charger unit) — tall enough for LIDAR (~0.29m) to hit -->
         <visual name='charger_wall_v'>
-          <pose>0 -0.18 0.075 0 0 0</pose>
-          <geometry><box><size>0.35 0.04 0.15</size></box></geometry>
+          <pose>0 -0.18 0.175 0 0 0</pose>
+          <geometry><box><size>0.35 0.04 0.35</size></box></geometry>
           <material>
             <ambient>0.1 0.1 0.1 1</ambient>
             <diffuse>0.15 0.15 0.15 1</diffuse>
           </material>
         </visual>
         <collision name='charger_wall_c'>
-          <pose>0 -0.18 0.075 0 0 0</pose>
-          <geometry><box><size>0.35 0.04 0.15</size></box></geometry>
+          <pose>0 -0.18 0.175 0 0 0</pose>
+          <geometry><box><size>0.35 0.04 0.35</size></box></geometry>
         </collision>
-        <!-- Green LED indicator -->
+        <!-- Orange LED indicator (turns red when robot is parked/charging) -->
         <visual name='led_v'>
-          <pose>0 -0.165 0.14 0 0 0</pose>
+          <pose>0 -0.165 0.30 0 0 0</pose>
           <geometry><cylinder><radius>0.015</radius><length>0.01</length></cylinder></geometry>
           <material>
-            <ambient>0.0 1.0 0.0 1</ambient>
-            <diffuse>0.0 1.0 0.0 1</diffuse>
-            <emissive>0.0 0.8 0.0 1</emissive>
+            <ambient>1.0 0.5 0.0 1</ambient>
+            <diffuse>1.0 0.5 0.0 1</diffuse>
+            <emissive>0.8 0.4 0.0 1</emissive>
           </material>
         </visual>
         <!-- Orange charging contact pad — distinctive color for YOLO detection -->

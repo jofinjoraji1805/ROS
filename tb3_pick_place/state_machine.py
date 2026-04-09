@@ -38,7 +38,8 @@ from .config import (
     ALIGN_TABLE_KP, ALIGN_TABLE_SLOPE_THRESH, ALIGN_TABLE_TIMEOUT,
     CUBE_TABLE_Y,
     DOCK_POSITION, DOCK_FACE_YAW,
-    DOCK_APPROACH_VEL, DOCK_STOP_DISTANCE, DOCK_CREEP_VEL, DOCK_CREEP_TIME,
+    DOCK_APPROACH_VEL, DOCK_CENTER, DOCK_STOP_ODOM_DIST,
+    DOCK_CREEP_VEL, DOCK_CREEP_TIME,
     DOCK_ALIGN_CENTER_PX, DOCK_APPROACH_TIMEOUT,
 )
 from .perception import PerceptionModule, TaskDef
@@ -961,7 +962,7 @@ class StateMachine:
 
         # Search for dock via YOLO
         dock_cls = self.perception.CLS_DOCK
-        target = self._find_target(dock_cls)
+        target = self._find(dock_cls)
         if target:
             self.motion.stop()
             self.state = ST_ALIGN_DOCK
@@ -978,7 +979,7 @@ class StateMachine:
     def _align_dock(self):
         """Center the charging dock in the camera frame."""
         dock_cls = self.perception.CLS_DOCK
-        target = self._find_target(dock_cls)
+        target = self._find(dock_cls)
 
         if target is None:
             self._lost_count += 1
@@ -1018,16 +1019,19 @@ class StateMachine:
             self.status_text = f"Aligning dock err={pixel_err:+.0f}px"
 
     def _approach_dock(self):
-        """Drive toward dock using YOLO visual servo, stop when LIDAR close."""
+        """Drive toward dock using YOLO visual servo, stop by odom distance."""
         elapsed = time.time() - self._phase_start
-        front_d = self.lidar.get_front_distance()
+        x, y, yaw = self._get_odom()
+        dx = DOCK_CENTER[0] - x
+        dy = DOCK_CENTER[1] - y
+        odom_dist = math.sqrt(dx * dx + dy * dy)
 
-        # Close enough — start final creep
-        if front_d < DOCK_STOP_DISTANCE:
+        # Close enough by odometry — start final creep
+        if odom_dist < DOCK_STOP_ODOM_DIST:
             self.motion.stop()
             self.state = ST_DOCK_CREEP
             self._dock_creep_start = time.time()
-            self.status_text = "At dock — creeping into position..."
+            self.status_text = f"At dock ({odom_dist:.2f}m) — creeping into position..."
             self._log(self.status_text)
             return
 
@@ -1042,7 +1046,7 @@ class StateMachine:
 
         # Visual servo: keep dock centered while driving forward
         dock_cls = self.perception.CLS_DOCK
-        target = self._find_target(dock_cls)
+        target = self._find(dock_cls)
 
         if target is not None:
             self._lost_count = 0
@@ -1054,7 +1058,7 @@ class StateMachine:
             else:
                 ang = max(-0.10, min(0.10, -0.3 * (cx - 0.5)))
                 self.motion.publish(lx=DOCK_APPROACH_VEL, az=ang)
-            self.status_text = f"Approaching dock LIDAR:{front_d:.2f}m"
+            self.status_text = f"Approaching dock odom:{odom_dist:.2f}m"
         else:
             self._lost_count += 1
             if self._lost_count > 60:
@@ -1076,8 +1080,11 @@ class StateMachine:
             self.status_text = f"Docking... {DOCK_CREEP_TIME - elapsed:.1f}s"
         else:
             self.motion.stop()
-            self.arm.home()
+            self.arm.stow()
             self.state = ST_PARKED
             self.running = False
             self.status_text = "Robot parked at charging dock -- Charging -- Mission Complete!"
             self._log(self.status_text)
+            # Change dock LED from orange to red (charging indicator)
+            if self._robot is not None:
+                self._robot.set_dock_led_color(1.0, 0.0, 0.0)

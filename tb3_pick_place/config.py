@@ -33,7 +33,7 @@ MAP_ORIGIN_OFFSET = 6.0           # centre offset
 MAP_SAVE_DIR = "/home/jofin/colcon_ws/maps"
 
 # ── Exploration waypoints ────────────────────────────────────────────
-# Robot spawns at (0.5, -2.0). These waypoints cover the room:
+# Robot spawns at (0.5, -3.0) inside dock. These waypoints cover the room:
 #   Left side (pick tables), right side (drop zones), corridors.
 EXPLORE_WAYPOINTS = [
     # Start area -> move north through centre
@@ -134,12 +134,13 @@ ZONE_ADJUST_TIME = 10.0
 RETURN_HOME_THRESH = 0.20
 
 # ── Charging dock ────────────────────────────────────────────────────
-DOCK_POSITION = (0.5, -2.3)          # (x, y) — waypoint to start dock search
+DOCK_POSITION = (0.5, -2.7)          # (x, y) — waypoint to start dock search
 DOCK_FACE_YAW = -1.5708              # face -Y (toward dock) to start search
 DOCK_APPROACH_VEL = 0.06             # forward vel during visual servo approach
-DOCK_STOP_DISTANCE = 0.30            # LIDAR distance to stop approach and creep
+DOCK_CENTER = (0.5, -3.1)            # actual dock center (for odom-based stop)
+DOCK_STOP_ODOM_DIST = 0.45           # odom distance to dock center to start creep
 DOCK_CREEP_VEL = 0.04                # slow final creep into dock
-DOCK_CREEP_TIME = 4.0                # seconds to creep into final park position
+DOCK_CREEP_TIME = 12.0               # seconds to creep into final park position (0.04*12=0.48m)
 DOCK_ALIGN_CENTER_PX = 15            # centering tolerance (pixels)
 DOCK_APPROACH_TIMEOUT = 30.0         # max seconds for approach
 
@@ -165,6 +166,8 @@ ARM_CARRY = [0.0, -0.8, 0.2, 0.6]
 ARM_DROP_EXTEND = [0.0, 0.05, 0.05, -0.10]     # arm stretched forward, slightly above wall height
 ARM_DROP_OVER = [0.0, 0.25, 0.05, -0.30]       # shoulder tilts down, gripper drops well inside box
 ARM_DROP_RETREAT = [0.0, -0.50, 0.30, 0.20]    # pull arm back after release
+# STOW: arm folded fully down for charging/parking
+ARM_STOW = [0.0, -1.05, 0.35, 0.70]
 
 # ── Gripper ──────────────────────────────────────────────────────────
 GRIPPER_OPEN = 0.019

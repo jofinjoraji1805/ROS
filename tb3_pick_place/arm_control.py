@@ -9,7 +9,7 @@ from builtin_interfaces.msg import Duration
 
 from .config import (
     ARM_HOME, ARM_READY, ARM_PRE_PICK, ARM_PICK,
-    ARM_LIFT, ARM_CARRY,
+    ARM_LIFT, ARM_CARRY, ARM_STOW,
     ARM_PRE_PICK_RED, ARM_PICK_RED, ARM_LIFT_RED,
     ARM_DROP_EXTEND, ARM_DROP_OVER, ARM_DROP_RETREAT,
     GRIPPER_OPEN, GRIPPER_CLOSE, GRIPPER_EFFORT,
@@ -40,6 +40,9 @@ class ArmController:
 
     def home(self, dur: float = 3.0):
         self.send_joint(ARM_HOME, dur)
+
+    def stow(self, dur: float = 3.0):
+        self.send_joint(ARM_STOW, dur)
 
     def ready(self, dur: float = 3.0):
         self.send_joint(ARM_READY, dur)
