@@ -841,6 +841,128 @@
       </link>
     </model>
 
+    <!-- ==================== BLACK BORDERS ==================== -->
+
+    <!-- Black border around blue cube on Table 1 -->
+    <model name='border_cube_blue'>
+      <static>true</static>
+      <pose>-0.91 1.5 0.151 0 0 0</pose>
+      <link name='link'>
+        <visual name='top'><pose>0 0.03 0 0 0 0</pose>
+          <geometry><box><size>0.065 0.005 0.003</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='bot'><pose>0 -0.03 0 0 0 0</pose>
+          <geometry><box><size>0.065 0.005 0.003</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='lft'><pose>-0.03 0 0 0 0 0</pose>
+          <geometry><box><size>0.005 0.065 0.003</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='rgt'><pose>0.03 0 0 0 0 0</pose>
+          <geometry><box><size>0.005 0.065 0.003</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <!-- Black border around red cube on Table 2 -->
+    <model name='border_cube_red'>
+      <static>true</static>
+      <pose>-0.91 0.0 0.151 0 0 0</pose>
+      <link name='link'>
+        <visual name='top'><pose>0 0.03 0 0 0 0</pose>
+          <geometry><box><size>0.065 0.005 0.003</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='bot'><pose>0 -0.03 0 0 0 0</pose>
+          <geometry><box><size>0.065 0.005 0.003</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='lft'><pose>-0.03 0 0 0 0 0</pose>
+          <geometry><box><size>0.005 0.065 0.003</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='rgt'><pose>0.03 0 0 0 0 0</pose>
+          <geometry><box><size>0.005 0.065 0.003</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <!-- Black border around green cube on Table 3 -->
+    <model name='border_cube_green'>
+      <static>true</static>
+      <pose>-0.91 -1.5 0.151 0 0 0</pose>
+      <link name='link'>
+        <visual name='top'><pose>0 0.03 0 0 0 0</pose>
+          <geometry><box><size>0.065 0.005 0.003</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='bot'><pose>0 -0.03 0 0 0 0</pose>
+          <geometry><box><size>0.065 0.005 0.003</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='lft'><pose>-0.03 0 0 0 0 0</pose>
+          <geometry><box><size>0.005 0.065 0.003</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='rgt'><pose>0.03 0 0 0 0 0</pose>
+          <geometry><box><size>0.005 0.065 0.003</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <!-- Black border around red drop zone -->
+    <model name='border_drop_red'>
+      <static>true</static>
+      <pose>2.0 1.5 0.003 0 0 0</pose>
+      <link name='link'>
+        <visual name='top'><pose>0 0.25 0 0 0 0</pose>
+          <geometry><box><size>0.52 0.02 0.006</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='bot'><pose>0 -0.25 0 0 0 0</pose>
+          <geometry><box><size>0.52 0.02 0.006</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='lft'><pose>-0.25 0 0 0 0 0</pose>
+          <geometry><box><size>0.02 0.52 0.006</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='rgt'><pose>0.25 0 0 0 0 0</pose>
+          <geometry><box><size>0.02 0.52 0.006</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <!-- Black border around green drop zone -->
+    <model name='border_drop_green'>
+      <static>true</static>
+      <pose>2.0 0.0 0.003 0 0 0</pose>
+      <link name='link'>
+        <visual name='top'><pose>0 0.25 0 0 0 0</pose>
+          <geometry><box><size>0.52 0.02 0.006</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='bot'><pose>0 -0.25 0 0 0 0</pose>
+          <geometry><box><size>0.52 0.02 0.006</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='lft'><pose>-0.25 0 0 0 0 0</pose>
+          <geometry><box><size>0.02 0.52 0.006</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='rgt'><pose>0.25 0 0 0 0 0</pose>
+          <geometry><box><size>0.02 0.52 0.006</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <!-- Black border around blue drop zone -->
+    <model name='border_drop_blue'>
+      <static>true</static>
+      <pose>2.0 -1.5 0.003 0 0 0</pose>
+      <link name='link'>
+        <visual name='top'><pose>0 0.25 0 0 0 0</pose>
+          <geometry><box><size>0.52 0.02 0.006</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='bot'><pose>0 -0.25 0 0 0 0</pose>
+          <geometry><box><size>0.52 0.02 0.006</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='lft'><pose>-0.25 0 0 0 0 0</pose>
+          <geometry><box><size>0.02 0.52 0.006</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+        <visual name='rgt'><pose>0.25 0 0 0 0 0</pose>
+          <geometry><box><size>0.02 0.52 0.006</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse></material></visual>
+      </link>
+    </model>
+
     <!-- Charging Dock — bottom-centre of room, against south wall -->
     <model name='charging_dock'>
       <static>1</static>

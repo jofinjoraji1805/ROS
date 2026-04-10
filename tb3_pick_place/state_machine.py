@@ -4,7 +4,7 @@ state_machine.py -- Autonomous pick-and-place with map-based navigation.
 
 Two-phase navigation per cube:
   1. NAV_TO_CUBE: A* path planning to approach point near the table
-  2. YOLO visual servo: SEARCH -> ALIGN -> APPROACH -> ADJUST -> PICK
+  2. YOLO visual servo: SEARCH -> ALIGN -> L-ALIGN -> APPROACH -> ADJUST -> PICK
 
 Then for drop:
   1. NAV_TO_ZONE: A* path planning to approach point near drop zone
@@ -19,7 +19,7 @@ from typing import Callable, List, Optional, Tuple
 
 from .config import (
     ST_IDLE, ST_NAV_TO_CUBE, ST_DRIVE_TO_CUBE, ST_SEARCH_OBJECT, ST_ALIGN_OBJECT,
-    ST_APPROACH_OBJECT, ST_ADJUST_POSITION, ST_ALIGN_TABLE, ST_PICK_OBJECT,
+    ST_LATERAL_ALIGN, ST_APPROACH_OBJECT, ST_ADJUST_POSITION, ST_ALIGN_TABLE, ST_PICK_OBJECT,
     ST_BACKUP_PICK, ST_NAV_TO_ZONE, ST_DRIVE_TO_ZONE, ST_SEARCH_DROP_ZONE,
     ST_APPROACH_DROP, ST_ADJUST_DROP, ST_PLACE_OBJECT,
     ST_BACKUP_DROP, ST_NEXT_OBJECT, ST_RETURN_HOME,
@@ -29,6 +29,7 @@ from .config import (
     MAX_ANG_VEL, APPROACH_FWD, APPROACH_DRIFT_PX,
     APPROACH_MILD_KP, APPROACH_MILD_MAX, APPROACH_TIMEOUT,
     CUBE_LOST_TICKS, ADJUST_FWD, ADJUST_DURATION,
+    LATERAL_MIN_ANGLE, LATERAL_DRIVE_VEL, LATERAL_YAW_TOLERANCE,
     BACKUP_VEL, BACKUP_PICK_TIME, BACKUP_DROP_TIME,
     ZONE_CLOSE_AREA, ZONE_APPROACH_TIME, ZONE_FINAL_TIME,
     ZONE_FINAL_VEL, ZONE_ADJUST_TIME, RETURN_HOME_THRESH,
@@ -103,6 +104,12 @@ class StateMachine:
         self._perp_yaw = 0.0          # saved perpendicular heading for approach
         self._align_phase = 0         # 0=parallel, 1=center on cube
         self._last_align_ang = 0.0    # last rotation direction during align
+        self._lateral_phase = 0       # 0=rotate lateral, 1=drive, 2=rotate back
+        self._lateral_target_yaw = 0.0
+        self._lateral_drive_dist = 0.0
+        self._lateral_start_x = 0.0
+        self._lateral_start_y = 0.0
+        self._lateral_done = False    # True after L-move; approach uses heading-hold
 
     # ── Face target yaw ────────────────────────────────────────────
 
@@ -162,6 +169,7 @@ class StateMachine:
 
     def _start_nav_to_cube(self, task: TaskDef):
         lbl = task.label
+        self._lateral_done = False
         waypoints = CUBE_NAV_TARGETS.get(lbl)
         if waypoints:
             self._lpath_wps = list(waypoints)  # L-path waypoints
@@ -245,6 +253,7 @@ class StateMachine:
             ST_DRIVE_TO_CUBE: self._drive_to_cube,
             ST_SEARCH_OBJECT: self._search_object,
             ST_ALIGN_OBJECT: self._align_object,
+            ST_LATERAL_ALIGN: self._lateral_align,
             ST_APPROACH_OBJECT: self._approach_object,
             ST_ADJUST_POSITION: self._adjust_position,
             ST_ALIGN_TABLE: self._align_table,
@@ -447,15 +456,39 @@ class StateMachine:
 
         if abs(pixel_err) <= ALIGN_CENTER_PX:
             self.motion.stop()
-            # Save current heading as fallback if cube is lost during approach
             _, _, yaw = self._get_odom()
             self._perp_yaw = yaw
-            self.state = ST_APPROACH_OBJECT
-            self._phase_start = time.time()
             self._lost_count = 0
             self._last_align_ang = 0.0
-            self.status_text = f"[{lbl}] Cube centered! Visual servo approach..."
-            self._log(self.status_text)
+
+            # Check if robot heading deviated from table-perpendicular
+            yaw_diff = yaw - CUBE_FACE_YAW
+            while yaw_diff > math.pi:  yaw_diff -= 2 * math.pi
+            while yaw_diff < -math.pi: yaw_diff += 2 * math.pi
+
+            if abs(yaw_diff) > LATERAL_MIN_ANGLE:
+                # L-move needed: strafe laterally, then approach straight
+                front_d = self.lidar.get_front_distance()
+                self._lateral_drive_dist = abs(front_d * math.sin(yaw_diff))
+                # Rotate toward the cube side (perpendicular to table)
+                if yaw_diff > 0:
+                    self._lateral_target_yaw = CUBE_FACE_YAW + math.pi / 2
+                else:
+                    self._lateral_target_yaw = CUBE_FACE_YAW - math.pi / 2
+                # Normalize
+                while self._lateral_target_yaw > math.pi:
+                    self._lateral_target_yaw -= 2 * math.pi
+                while self._lateral_target_yaw < -math.pi:
+                    self._lateral_target_yaw += 2 * math.pi
+                self._lateral_phase = 0
+                self.state = ST_LATERAL_ALIGN
+                self._phase_start = time.time()
+                self._log(f"[{lbl}] L-move: lateral {self._lateral_drive_dist:.2f}m (yaw_diff={math.degrees(yaw_diff):+.1f}deg)")
+            else:
+                self.state = ST_APPROACH_OBJECT
+                self._phase_start = time.time()
+                self.status_text = f"[{lbl}] Cube centered! Visual servo approach..."
+                self._log(self.status_text)
         else:
             ang = max(-MAX_ANG_VEL, min(MAX_ANG_VEL, -ALIGN_KP * err))
             if 0 < abs(ang) < 0.05:
@@ -463,6 +496,70 @@ class StateMachine:
             self._last_align_ang = ang
             self.motion.publish(lx=0.0, az=ang)
             self.status_text = f"[{lbl}] Aligning err={pixel_err:+.0f}px"
+
+    # ── LATERAL L-ALIGN: strafe to line up with off-center cube ────────
+
+    def _lateral_align(self, task: TaskDef, lbl: str):
+        """L-shaped maneuver: rotate lateral -> drive to align -> rotate back to face table."""
+        _, _, cur_yaw = self._get_odom()
+
+        # Phase 0: Rotate to face lateral direction
+        if self._lateral_phase == 0:
+            err = self._lateral_target_yaw - cur_yaw
+            while err > math.pi:  err -= 2 * math.pi
+            while err < -math.pi: err += 2 * math.pi
+            if abs(err) < LATERAL_YAW_TOLERANCE:
+                self.motion.stop()
+                x, y, _ = self._get_odom()
+                self._lateral_start_x = x
+                self._lateral_start_y = y
+                self._lateral_phase = 1
+                self._log(f"[{lbl}] L-move: driving lateral {self._lateral_drive_dist:.2f}m")
+                return
+            ang = max(-MAX_ANG_VEL, min(MAX_ANG_VEL, 0.5 * err))
+            if 0 < abs(ang) < 0.05:
+                ang = 0.05 * (1 if ang > 0 else -1)
+            self.motion.publish(lx=0.0, az=ang)
+            self.status_text = f"[{lbl}] L-move: rotating lateral {math.degrees(err):+.1f}deg"
+
+        # Phase 1: Drive forward the lateral distance
+        elif self._lateral_phase == 1:
+            x, y, _ = self._get_odom()
+            dx = x - self._lateral_start_x
+            dy = y - self._lateral_start_y
+            driven = math.sqrt(dx * dx + dy * dy)
+            if driven >= self._lateral_drive_dist:
+                self.motion.stop()
+                self._lateral_phase = 2
+                self._log(f"[{lbl}] L-move: rotating to face table")
+                return
+            # Heading hold while driving
+            err = self._lateral_target_yaw - cur_yaw
+            while err > math.pi:  err -= 2 * math.pi
+            while err < -math.pi: err += 2 * math.pi
+            ang = max(-0.10, min(0.10, 0.5 * err))
+            self.motion.publish(lx=LATERAL_DRIVE_VEL, az=ang)
+            self.status_text = f"[{lbl}] L-move: lateral {driven:.2f}/{self._lateral_drive_dist:.2f}m"
+
+        # Phase 2: Rotate back to face table (CUBE_FACE_YAW)
+        elif self._lateral_phase == 2:
+            err = CUBE_FACE_YAW - cur_yaw
+            while err > math.pi:  err -= 2 * math.pi
+            while err < -math.pi: err += 2 * math.pi
+            if abs(err) < LATERAL_YAW_TOLERANCE:
+                self.motion.stop()
+                self._perp_yaw = CUBE_FACE_YAW
+                self._lateral_done = True
+                self.state = ST_APPROACH_OBJECT
+                self._phase_start = time.time()
+                self._lost_count = 0
+                self._log(f"[{lbl}] L-move done! Approaching table straight...")
+                return
+            ang = max(-MAX_ANG_VEL, min(MAX_ANG_VEL, 0.5 * err))
+            if 0 < abs(ang) < 0.05:
+                ang = 0.05 * (1 if ang > 0 else -1)
+            self.motion.publish(lx=0.0, az=ang)
+            self.status_text = f"[{lbl}] L-move: facing table {math.degrees(err):+.1f}deg"
 
     def _approach_object(self, task: TaskDef, lbl: str):
         """Drive toward cube using continuous YOLO visual servoing.
@@ -488,9 +585,31 @@ class StateMachine:
             self._phase_start = time.time()
             return
 
-        # YOLO visual servo: continuously steer to keep cube centered
+        # After L-move: heading-hold with gentle YOLO trim (don't re-steer)
+        # Without L-move: full YOLO visual servo
         target = self._find_and_label(task.cube_cls)
-        if target is not None:
+        if self._lateral_done:
+            # Heading-hold on CUBE_FACE_YAW — drive straight to table
+            _, _, cur_yaw = self._get_odom()
+            yaw_err = self._perp_yaw - cur_yaw
+            while yaw_err > math.pi:  yaw_err -= 2 * math.pi
+            while yaw_err < -math.pi: yaw_err += 2 * math.pi
+            ang = max(-0.10, min(0.10, 0.8 * yaw_err))
+            # Very gentle YOLO trim (±0.02) — just nudge, don't steer
+            if target is not None:
+                self._lost_count = 0
+                trim = max(-0.02, min(0.02, -0.05 * (target[0] - 0.5)))
+                ang = max(-0.10, min(0.10, ang + trim))
+                pixel_err = (target[0] - 0.5) * 640
+            else:
+                self._lost_count += 1
+                pixel_err = 0
+                if self._lost_count > CUBE_LOST_TICKS:
+                    self.motion.stop()
+                    self.state = ST_SEARCH_OBJECT
+                    self._lost_count = 0
+                    return
+        elif target is not None:
             self._lost_count = 0
             cx = target[0]
             pixel_err = (cx - 0.5) * 640

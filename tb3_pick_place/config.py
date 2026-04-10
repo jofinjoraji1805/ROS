@@ -185,6 +185,7 @@ ST_DRIVE_TO_CUBE = "DRIVE_TO_CUBE"
 ST_SEARCH_OBJECT = "SEARCH_OBJECT"
 ST_ALIGN_OBJECT = "ALIGN_OBJECT"
 ST_APPROACH_OBJECT = "APPROACH_OBJECT"
+ST_LATERAL_ALIGN = "LATERAL_ALIGN"
 ST_ADJUST_POSITION = "ADJUST_POSITION"
 ST_ALIGN_TABLE = "ALIGN_TABLE"
 ST_PICK_OBJECT = "PICK_OBJECT"
@@ -204,6 +205,11 @@ ST_APPROACH_DOCK = "APPROACH_DOCK"
 ST_DOCK_CREEP = "DOCK_CREEP"
 ST_PARKED = "PARKED"
 ST_DONE = "DONE"
+
+# ── Lateral L-align (strafe to line up with off-center cube) ─────────
+LATERAL_MIN_ANGLE = 0.08            # rad (~4.5 deg) -- skip L-move if smaller
+LATERAL_DRIVE_VEL = 0.08            # m/s while driving laterally
+LATERAL_YAW_TOLERANCE = 0.04        # rad -- "close enough" when rotating
 
 # ── Table alignment (LiDAR parallel) ─────────────────────────────────
 ALIGN_TABLE_KP = 1.2
