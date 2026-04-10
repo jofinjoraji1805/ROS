@@ -1,114 +1,126 @@
-# TurtleBot3 Waffle Pi + OpenMANIPULATOR-X — Pick & Place
+# TurtleBot3 Waffle Pi + OpenMANIPULATOR-X — Autonomous Pick & Place
+
+Autonomous mobile goods delivery system using TurtleBot3 with manipulator. The robot navigates a room, detects colored cubes using YOLO, picks them from tables, and delivers them to matching drop zones, then returns to a charging dock.
+
+## Features
+
+- **YOLO Object Detection**: Detects red, green, blue cubes and drop zones using a custom-trained YOLOv8 model
+- **Visual Servo Control**: Aligns and approaches cubes using continuous YOLO-based visual feedback
+- **L-Formation Approach**: When a cube is off-center, the robot performs an L-shaped lateral alignment maneuver before approaching the table perpendicularly
+- **LiDAR-Based Alignment**: Uses LiDAR slope fitting to align perpendicular to the table surface
+- **IFRA Link Attacher**: Reliable grasp using Gazebo fixed-joint attachment (physics grip alone is unreliable for small objects)
+- **Contact Sensor Grip**: Gripper fingers detect cube contact before triggering the attach
+- **A* Path Planning**: Map-based navigation with obstacle avoidance using a pre-built SLAM map
+- **Charging Dock**: YOLO-guided visual servo docking after all tasks complete
+- **GUI Dashboard**: PyQt5 interface with status bar, nav map, and mission control buttons
+
+## World Layout
+
+| Location | Object | Position |
+|----------|--------|----------|
+| Table 1 (top-left) | Red cube | (-1.0, 1.5) |
+| Table 2 (middle-left) | Green cube | (-1.0, 0.0) |
+| Table 3 (bottom-left) | Blue cube | (-1.0, -1.5) |
+| Drop zone (top-right) | Red zone | (2.0, 1.5) |
+| Drop zone (middle-right) | Green zone | (2.0, 0.0) |
+| Drop zone (bottom-right) | Blue zone | (2.0, -1.5) |
+| Charging dock | Dock | (0.5, -3.1) |
+
+All cubes and drop zones have black borders for visual clarity.
 
 ## Prerequisites
-
-### 1. Install TurtleBot3 Manipulation packages
 
 ```bash
 # Core dependencies
 sudo apt install ros-humble-dynamixel-sdk ros-humble-ros2-control \
   ros-humble-ros2-controllers ros-humble-gripper-controllers \
-  ros-humble-hardware-interface ros-humble-xacro ros-humble-moveit*
+  ros-humble-hardware-interface ros-humble-xacro
+
+# Python dependencies
+pip install ultralytics PyQt5 numpy
 
 # Clone turtlebot3_manipulation
 cd ~/colcon_ws/src/
 git clone -b humble https://github.com/ROBOTIS-GIT/turtlebot3_manipulation.git
-
-# Clone turtlebot3_simulations (for Gazebo)
 git clone -b humble https://github.com/ROBOTIS-GIT/turtlebot3_simulations.git
-
-# Build
-cd ~/colcon_ws && colcon build --symlink-install
-source install/setup.bash
 ```
 
-### 2. Set TurtleBot3 model (add to ~/.bashrc)
+## Install
 
 ```bash
-echo 'export TURTLEBOT3_MODEL=waffle_pi' >> ~/.bashrc
-source ~/.bashrc
-```
-
----
-
-## Install this package
-
-```bash
-cp -r tb3_pick_place ~/colcon_ws/src/
 cd ~/colcon_ws
-colcon build --packages-select tb3_pick_place --symlink-install
+colcon build --symlink-install
 source install/setup.bash
 ```
 
----
+## Launch
 
-## Run Pick & Place
-
-### Terminal 1 — Launch Gazebo + Robot
+Single command launches everything (Gazebo, robot, YOLO node, GUI):
 
 ```bash
+export DISPLAY=:1
 export TURTLEBOT3_MODEL=waffle_pi
+source /opt/ros/humble/setup.bash
+source /usr/share/gazebo-11/setup.bash
 source ~/colcon_ws/install/setup.bash
+export GAZEBO_PLUGIN_PATH=$GAZEBO_PLUGIN_PATH:/home/jofin/colcon_ws/install/ros2_linkattacher/lib
 ros2 launch tb3_pick_place pick_place.launch.py
 ```
 
-Wait until you see all controllers loaded:
-- `joint_state_broadcaster`
-- `arm_controller`
-- `gripper_controller`
-
-### Terminal 2 — Verify services
+Or use the launch script:
 
 ```bash
-source ~/colcon_ws/install/setup.bash
-
-# Verify controllers
-ros2 control list_controllers
-
-# Verify Gazebo state services (required for virtual attach)
-ros2 service list | grep entity
-# Must show: /get_entity_state and /set_entity_state
+bash ~/launch.sh
 ```
 
-### Terminal 3 — Run pick-and-place
+## Usage
 
-```bash
-source ~/colcon_ws/install/setup.bash
-python3 ~/colcon_ws/src/tb3_pick_place/scripts/pick_place_tb3.py
+1. Wait for Gazebo and the GUI to open
+2. Click **BUILD MAP** to auto-explore and build a SLAM map
+3. Click **START MISSION** to begin autonomous pick-and-place
+4. The robot will:
+   - Navigate to each table using A* path planning
+   - Detect the cube using YOLO
+   - Perform L-formation alignment if the cube is off-center
+   - Pick the cube using the manipulator arm
+   - Navigate to the matching drop zone
+   - Place the cube in the drop zone
+   - Return to the charging dock after all tasks complete
+
+## State Flow
+
+```
+NAV_TO_CUBE -> SEARCH -> ALIGN -> LATERAL_ALIGN -> APPROACH -> ALIGN_TABLE -> PICK
+-> BACKUP -> NAV_TO_ZONE -> SEARCH_DROP -> APPROACH_DROP -> PLACE -> BACKUP_DROP
+-> NEXT -> ... -> RETURN_HOME -> SEARCH_DOCK -> ALIGN_DOCK -> APPROACH_DOCK -> PARKED
 ```
 
----
+## Key Configuration (config.py)
 
-## Alternative: Use official launch + custom world separately
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| YOLO_MODEL | yolomodel/best.pt | Custom YOLOv8 model (7 classes) |
+| TABLE_STOP_DISTANCE | 0.23m | LiDAR distance to stop at table |
+| ALIGN_CENTER_PX | 10px | Pixel tolerance for cube centering |
+| LATERAL_MIN_ANGLE | 0.08 rad | Min angle to trigger L-formation |
+| GRIPPER_OPEN | 0.019 | Gripper open position |
+| GRIPPER_CLOSE | -0.015 | Gripper close position |
 
-If the wrapped launch doesn't work, launch manually:
+## YOLO Classes
 
-```bash
-# Terminal 1: Gazebo with custom world
-export TURTLEBOT3_MODEL=waffle_pi
-source ~/colcon_ws/install/setup.bash
-WORLD=$(ros2 pkg prefix tb3_pick_place)/share/tb3_pick_place/worlds/pick_place_world.world
-ros2 launch turtlebot3_manipulation_gazebo gazebo.launch.py world:=$WORLD
-
-# Terminal 2: Pick and place
-source ~/colcon_ws/install/setup.bash
-python3 ~/colcon_ws/src/tb3_pick_place/scripts/pick_place_tb3.py
-```
-
----
-
-## How It Works
-
-1. **Discovery**: Script queries Gazebo to find the robot entity name and gripper link
-2. **Position sensing**: Gets arm base (link1) and box world positions from Gazebo
-3. **Dynamic IK**: Computes joint angles relative to the actual arm base position
-4. **Virtual attach**: After closing gripper, continuously teleports the box to follow the gripper link (Gazebo Classic can't reliably grip with prismatic joints)
-5. **Release**: Stops teleporting at drop location, box falls naturally
+| ID | Class |
+|----|-------|
+| 0 | red_cube |
+| 1 | green_cube |
+| 2 | blue_cube |
+| 3 | red_drop_zone |
+| 4 | green_drop_zone |
+| 5 | blue_drop_zone |
+| 6 | charging_dock |
 
 ## Troubleshooting
 
-- **"arm_controller NOT found"**: Controllers haven't loaded yet. Wait longer or check `ros2 control list_controllers`
-- **"get_entity_state NOT found"**: The `libgazebo_ros_state.so` plugin is missing. It's included in the world file — make sure you're using the custom world
-- **"Cannot find robot entity"**: The Gazebo model name doesn't match. Run `ros2 service call /get_entity_state gazebo_msgs/srv/GetEntityState "{name: 'YOUR_NAME'}"` to test names
-- **"IK FAILED"**: Box is too far from arm. Move table closer or reposition the turtlebot
-- **Robot not visible**: Set `GAZEBO_MODEL_PATH` to include turtlebot3 mesh directories
+- **gzclient crashes on launch**: Gazebo rendering bug with delayed start. The launch file handles this with a timed delay.
+- **Camera not rendering**: Ensure `source /usr/share/gazebo-11/setup.bash` is run before launch.
+- **Cube not attaching**: Verify the IFRA LinkAttacher plugin is loaded. Check `GAZEBO_PLUGIN_PATH` includes the `ros2_linkattacher/lib` directory.
+- **Robot approaching at angle**: The L-formation alignment corrects for off-center cubes. Check `LATERAL_MIN_ANGLE` threshold.
