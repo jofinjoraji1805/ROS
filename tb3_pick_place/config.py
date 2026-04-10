@@ -66,9 +66,9 @@ EXPLORE_WAYPOINTS = [
 # then turns and drives straight -X toward the table.
 # Each entry is a list of (x, y) waypoints forming the L-path.
 CUBE_NAV_TARGETS = {
-    "RED":   [(0.5, -1.5), (0.0, -1.5)],   # stage at y=-1.5, then approach
-    "BLUE":  [(0.5, 0.0),  (0.0, 0.0)],    # stage at y=0.0, then approach
-    "GREEN": [(0.5, 1.5),  (0.0, 1.5)],    # stage at y=1.5, then approach
+    "RED":   [(0.5, 1.5),  (0.0, 1.5)],    # red cube on Table 1 (y=1.5)
+    "BLUE":  [(0.5, -1.5), (0.0, -1.5)],   # blue cube on Table 3 (y=-1.5)
+    "GREEN": [(0.5, 0.0),  (0.0, 0.0)],    # green cube on Table 2 (y=0.0)
 }
 ZONE_NAV_TARGETS = {
     "RED":   [(0.5, 1.5),  (1.78, 1.5)],    # L-path: right at box back wall (x=1.80)
@@ -84,9 +84,9 @@ ZONE_BOX_CENTER = {
 
 # Known table Y-coordinates for odom-based lateral correction during approach
 CUBE_TABLE_Y = {
-    "RED":   -1.5,
-    "BLUE":   0.0,
-    "GREEN":  1.5,
+    "RED":    1.5,
+    "BLUE":  -1.5,
+    "GREEN":  0.0,
 }
 
 # Face direction after arriving at nav target (perpendicular to object)

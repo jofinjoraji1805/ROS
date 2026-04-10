@@ -238,10 +238,88 @@
       </link>
     </model>
 
-    <!-- Green cube on Table 1 (dynamic — physically graspable) -->
-    <model name='green_cube'>
+    <!-- Red cube on Table 1 (dynamic — physically graspable) -->
+    <model name='red_cube'>
       <static>false</static>
       <pose>-0.91 1.5 0.175 0 0 0</pose>
+      <link name='link'>
+        <gravity>true</gravity>
+        <kinematic>false</kinematic>
+        <inertial>
+          <mass>0.001</mass>
+          <inertia>
+            <ixx>0.0000015</ixx><iyy>0.0000015</iyy><izz>0.0000005</izz>
+            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+          </inertia>
+        </inertial>
+        <collision name='collision'>
+          <geometry><box><size>0.025 0.025 0.045</size></box></geometry>
+          <surface>
+            <friction>
+              <ode><mu>1000.0</mu><mu2>1000.0</mu2><fdir1>0 0 0</fdir1></ode>
+              <torsional>
+                <coefficient>1000.0</coefficient>
+                <use_patch_radius>true</use_patch_radius>
+                <patch_radius>0.05</patch_radius>
+              </torsional>
+            </friction>
+            <contact>
+              <ode>
+                <kp>500000.0</kp><kd>50.0</kd>
+                <max_vel>0.0</max_vel>
+                <min_depth>0.002</min_depth>
+              </ode>
+            </contact>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry><box><size>0.025 0.025 0.045</size></box></geometry>
+          <material>
+            <ambient>0.9 0.2 0.2 1</ambient>
+            <diffuse>0.95 0.2 0.2 1</diffuse>
+            <specular>0.3 0.3 0.3 1</specular>
+            <emissive>0.3 0.05 0.05 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Table 2 (middle-left) — blue cube on top -->
+    <model name='pick_table_2'>
+      <static>1</static>
+      <pose>-1.0 0.0 0.0 0 0 0</pose>
+      <link name='table_link'>
+        <collision name='top_collision'>
+          <pose>0 0 0.14 0 0 0</pose>
+          <geometry><box><size>0.20 0.35 0.02</size></box></geometry>
+        </collision>
+        <visual name='top_visual'>
+          <pose>0 0 0.14 0 0 0</pose>
+          <geometry><box><size>0.20 0.35 0.02</size></box></geometry>
+          <material>
+            <ambient>0.55 0.35 0.15 1</ambient>
+            <diffuse>0.55 0.35 0.15 1</diffuse>
+          </material>
+        </visual>
+        <visual name='leg1'><pose>0.08 0.15 0.065 0 0 0</pose>
+          <geometry><box><size>0.03 0.03 0.13</size></box></geometry>
+          <material><ambient>0.4 0.25 0.1 1</ambient></material></visual>
+        <visual name='leg2'><pose>-0.08 0.15 0.065 0 0 0</pose>
+          <geometry><box><size>0.03 0.03 0.13</size></box></geometry>
+          <material><ambient>0.4 0.25 0.1 1</ambient></material></visual>
+        <visual name='leg3'><pose>0.08 -0.15 0.065 0 0 0</pose>
+          <geometry><box><size>0.03 0.03 0.13</size></box></geometry>
+          <material><ambient>0.4 0.25 0.1 1</ambient></material></visual>
+        <visual name='leg4'><pose>-0.08 -0.15 0.065 0 0 0</pose>
+          <geometry><box><size>0.03 0.03 0.13</size></box></geometry>
+          <material><ambient>0.4 0.25 0.1 1</ambient></material></visual>
+      </link>
+    </model>
+
+    <!-- Green cube on Table 2 (dynamic — physically graspable) -->
+    <model name='green_cube'>
+      <static>false</static>
+      <pose>-0.91 0.0 0.175 0 0 0</pose>
       <link name='link'>
         <gravity>true</gravity>
         <kinematic>false</kinematic>
@@ -284,10 +362,10 @@
       </link>
     </model>
 
-    <!-- Table 2 (middle-left) — blue cube on top -->
-    <model name='pick_table_2'>
+    <!-- Table 3 (bottom-left) — red cube on top -->
+    <model name='pick_table_3'>
       <static>1</static>
-      <pose>-1.0 0.0 0.0 0 0 0</pose>
+      <pose>-1.0 -1.5 0.0 0 0 0</pose>
       <link name='table_link'>
         <collision name='top_collision'>
           <pose>0 0 0.14 0 0 0</pose>
@@ -316,10 +394,10 @@
       </link>
     </model>
 
-    <!-- Blue cube on Table 2 (dynamic — physically graspable) -->
+    <!-- Blue cube on Table 3 (dynamic — physically graspable) -->
     <model name='blue_cube'>
       <static>false</static>
-      <pose>-0.91 0.0 0.175 0 0 0</pose>
+      <pose>-0.91 -1.5 0.175 0 0 0</pose>
       <link name='link'>
         <gravity>true</gravity>
         <kinematic>false</kinematic>
@@ -357,84 +435,6 @@
             <diffuse>0.1 0.1 0.95 1</diffuse>
             <specular>0.3 0.3 0.3 1</specular>
             <emissive>0.05 0.05 0.3 1</emissive>
-          </material>
-        </visual>
-      </link>
-    </model>
-
-    <!-- Table 3 (bottom-left) — red cube on top -->
-    <model name='pick_table_3'>
-      <static>1</static>
-      <pose>-1.0 -1.5 0.0 0 0 0</pose>
-      <link name='table_link'>
-        <collision name='top_collision'>
-          <pose>0 0 0.14 0 0 0</pose>
-          <geometry><box><size>0.20 0.35 0.02</size></box></geometry>
-        </collision>
-        <visual name='top_visual'>
-          <pose>0 0 0.14 0 0 0</pose>
-          <geometry><box><size>0.20 0.35 0.02</size></box></geometry>
-          <material>
-            <ambient>0.55 0.35 0.15 1</ambient>
-            <diffuse>0.55 0.35 0.15 1</diffuse>
-          </material>
-        </visual>
-        <visual name='leg1'><pose>0.08 0.15 0.065 0 0 0</pose>
-          <geometry><box><size>0.03 0.03 0.13</size></box></geometry>
-          <material><ambient>0.4 0.25 0.1 1</ambient></material></visual>
-        <visual name='leg2'><pose>-0.08 0.15 0.065 0 0 0</pose>
-          <geometry><box><size>0.03 0.03 0.13</size></box></geometry>
-          <material><ambient>0.4 0.25 0.1 1</ambient></material></visual>
-        <visual name='leg3'><pose>0.08 -0.15 0.065 0 0 0</pose>
-          <geometry><box><size>0.03 0.03 0.13</size></box></geometry>
-          <material><ambient>0.4 0.25 0.1 1</ambient></material></visual>
-        <visual name='leg4'><pose>-0.08 -0.15 0.065 0 0 0</pose>
-          <geometry><box><size>0.03 0.03 0.13</size></box></geometry>
-          <material><ambient>0.4 0.25 0.1 1</ambient></material></visual>
-      </link>
-    </model>
-
-    <!-- Red cube on Table 3 (dynamic — physically graspable) -->
-    <model name='red_cube'>
-      <static>false</static>
-      <pose>-0.91 -1.5 0.175 0 0 0</pose>
-      <link name='link'>
-        <gravity>true</gravity>
-        <kinematic>false</kinematic>
-        <inertial>
-          <mass>0.001</mass>
-          <inertia>
-            <ixx>0.0000015</ixx><iyy>0.0000015</iyy><izz>0.0000005</izz>
-            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
-          </inertia>
-        </inertial>
-        <collision name='collision'>
-          <geometry><box><size>0.025 0.025 0.045</size></box></geometry>
-          <surface>
-            <friction>
-              <ode><mu>1000.0</mu><mu2>1000.0</mu2><fdir1>0 0 0</fdir1></ode>
-              <torsional>
-                <coefficient>1000.0</coefficient>
-                <use_patch_radius>true</use_patch_radius>
-                <patch_radius>0.05</patch_radius>
-              </torsional>
-            </friction>
-            <contact>
-              <ode>
-                <kp>500000.0</kp><kd>50.0</kd>
-                <max_vel>0.0</max_vel>
-                <min_depth>0.002</min_depth>
-              </ode>
-            </contact>
-          </surface>
-        </collision>
-        <visual name='visual'>
-          <geometry><box><size>0.025 0.025 0.045</size></box></geometry>
-          <material>
-            <ambient>0.9 0.2 0.2 1</ambient>
-            <diffuse>0.95 0.2 0.2 1</diffuse>
-            <specular>0.3 0.3 0.3 1</specular>
-            <emissive>0.3 0.05 0.05 1</emissive>
           </material>
         </visual>
       </link>
