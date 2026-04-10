@@ -66,9 +66,9 @@ EXPLORE_WAYPOINTS = [
 # then turns and drives straight -X toward the table.
 # Each entry is a list of (x, y) waypoints forming the L-path.
 CUBE_NAV_TARGETS = {
-    "RED":   [(0.5, -1.5), (0.0, -1.5)],   # stage at y=-1.5, then approach
-    "BLUE":  [(0.5, 0.0),  (0.0, 0.0)],    # stage at y=0.0, then approach
-    "GREEN": [(0.5, 1.5),  (0.0, 1.5)],    # stage at y=1.5, then approach
+    "RED":   [(0.5, 0.0),  (0.0, 0.0)],    # red cube on Table 2 (y=0.0)
+    "BLUE":  [(0.5, 1.5),  (0.0, 1.5)],    # blue cube on Table 1 (y=1.5)
+    "GREEN": [(0.5, -1.5), (0.0, -1.5)],   # green cube on Table 3 (y=-1.5)
 }
 ZONE_NAV_TARGETS = {
     "RED":   [(0.5, 1.5),  (1.78, 1.5)],    # L-path: right at box back wall (x=1.80)
@@ -84,9 +84,9 @@ ZONE_BOX_CENTER = {
 
 # Known table Y-coordinates for odom-based lateral correction during approach
 CUBE_TABLE_Y = {
-    "RED":   -1.5,
-    "BLUE":   0.0,
-    "GREEN":  1.5,
+    "RED":    0.0,
+    "BLUE":   1.5,
+    "GREEN": -1.5,
 }
 
 # Face direction after arriving at nav target (perpendicular to object)
@@ -185,6 +185,7 @@ ST_DRIVE_TO_CUBE = "DRIVE_TO_CUBE"
 ST_SEARCH_OBJECT = "SEARCH_OBJECT"
 ST_ALIGN_OBJECT = "ALIGN_OBJECT"
 ST_APPROACH_OBJECT = "APPROACH_OBJECT"
+ST_LATERAL_ALIGN = "LATERAL_ALIGN"
 ST_ADJUST_POSITION = "ADJUST_POSITION"
 ST_ALIGN_TABLE = "ALIGN_TABLE"
 ST_PICK_OBJECT = "PICK_OBJECT"
@@ -204,6 +205,11 @@ ST_APPROACH_DOCK = "APPROACH_DOCK"
 ST_DOCK_CREEP = "DOCK_CREEP"
 ST_PARKED = "PARKED"
 ST_DONE = "DONE"
+
+# ── Lateral L-align (strafe to line up with off-center cube) ─────────
+LATERAL_MIN_ANGLE = 0.08            # rad (~4.5 deg) -- skip L-move if smaller
+LATERAL_DRIVE_VEL = 0.08            # m/s while driving laterally
+LATERAL_YAW_TOLERANCE = 0.04        # rad -- "close enough" when rotating
 
 # ── Table alignment (LiDAR parallel) ─────────────────────────────────
 ALIGN_TABLE_KP = 1.2
